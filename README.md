@@ -8,7 +8,7 @@ Rust, headless-first: hydropower and a local station grid in Stage 1, with room 
 
 ## Status
 
-Workspace scaffolded. Physics and runtime land in subsequent PRs. See [docs/design.md](docs/design.md).
+**Stage 1 engine implemented** on branch `feat/stage1-engine` (local commits, not pushed). Hydro physics, ramps, station grid, CLI, file packages, REST + WebSocket server, JS client, optional WASM. See [docs/design.md](docs/design.md).
 
 ## Quick start
 
