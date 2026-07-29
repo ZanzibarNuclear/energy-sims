@@ -53,7 +53,7 @@ energy-sims/
     api.md                   # library, CLI, HTTP (stub → PR5/PR7)
 ```
 
-Also in the workspace: `energy-sim-server` (REST + WebSocket). Optional: `energy-sim-wasm`.
+Also in the workspace: `energy-sim-server` (REST + WebSocket) and optional `energy-sim-wasm` (`wasm-pack build crates/energy-sim-wasm --target web`).
 
 ## Stage 1 (planned)
 

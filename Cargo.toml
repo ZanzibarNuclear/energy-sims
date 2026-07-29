@@ -4,6 +4,7 @@ members = [
     "crates/energy-sim-runtime",
     "crates/energy-sim-cli",
     "crates/energy-sim-server",
+    "crates/energy-sim-wasm",
 ]
 resolver = "2"
 
@@ -32,3 +33,6 @@ uuid = { version = "1", features = ["v4", "serde"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 futures-util = "0.3"
+wasm-bindgen = "0.2"
+serde-wasm-bindgen = "0.6"
+console_error_panic_hook = "0.1"

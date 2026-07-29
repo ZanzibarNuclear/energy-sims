@@ -9,7 +9,7 @@
 | **Library** (`energy-sim-core`, `energy-sim-runtime`) | In-process evaluation and sessions |
 | **CLI** (`energy-sim`) | Headless config → run → export |
 | **HTTP + WebSocket** (`energy-sim-server`) | Remote control + live telemetry (PR7) |
-| **WASM** (`energy-sim-wasm`) | Optional embed path (PR9) |
+| **WASM** (`energy-sim-wasm`) | Optional embed path |
 
 ## Library (Rust)
 
@@ -94,3 +94,23 @@ cargo run -p energy-sim-server -- --listen 127.0.0.1:8787
 ```
 
 In-memory sessions only (Stage 1). Auth and multi-tenant storage are later.
+
+## Optional WASM (`energy-sim-wasm`)
+
+For hosts that prefer in-process evaluation (teaching pages, offline demos):
+
+```sh
+# requires wasm-pack and rustup target wasm32-unknown-unknown
+wasm-pack build crates/energy-sim-wasm --target web
+```
+
+Exports:
+
+| JS name | Role |
+| --- | --- |
+| `version()` | Banner string |
+| `evaluateHydro(plantJson, operatorJson?)` | Steady-state hydro eval |
+| `runSession(configJson, durationSecs, commandsJson?)` | Start + advance; returns `AdvanceReport` |
+| `sessionSnapshot(configJson, start)` | Snapshot without long advance |
+
+Not required for Atomic Adventures when the remote service path is healthy.
