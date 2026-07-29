@@ -14,10 +14,20 @@ Workspace scaffolded. Physics and runtime land in subsequent PRs. See [docs/desi
 
 ```sh
 cargo test
-cargo run -p energy-sim-cli
+cargo run -p energy-sim-cli -- version
+
+# Steady-state hydro eval
+cargo run -p energy-sim-cli -- hydro eval --config fixtures/plants/upper-penstock.json
+
+# Session: 120 s with loads → checkpoint.json, series.csv, events.jsonl
+cargo run -p energy-sim-cli -- session run \
+  --config fixtures/stations/utility-station.json \
+  --duration-secs 120 \
+  --out-dir ./run-demo/ \
+  --commands examples/commands-lights-ev.json
 ```
 
-Requires a recent stable Rust toolchain (MSRV **1.76**).
+Requires a recent stable Rust toolchain (MSRV **1.76**). More workflows in [examples/README.md](examples/README.md).
 
 ## Workspace layout
 

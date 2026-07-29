@@ -1,0 +1,5 @@
+[
+  { "type": "set_load", "id": "lighting.main", "drawing": true },
+  { "type": "set_load", "id": "holo-reader.library", "drawing": true },
+  { "type": "set_load", "id": "ev-charge.port-1", "drawing": true }
+]
