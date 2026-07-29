@@ -6,7 +6,7 @@ Example plant and load configuration JSON for headless runs and tests.
 
 | File | Notes |
 | --- | --- |
-| `plants/upper-penstock.json` | Campus diversion plant sketch (with penstock losses) |
+| `plants/clearwater-diversion.json` | Campus diversion on **Clearwater Run** (with penstock losses) |
 | `plants/ideal-teaching.json` | Zero-loss elevation-only teaching case |
 
 ## Grids & stations

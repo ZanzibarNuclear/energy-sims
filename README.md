@@ -17,7 +17,7 @@ cargo test
 cargo run -p energy-sim-cli -- version
 
 # Steady-state hydro eval
-cargo run -p energy-sim-cli -- hydro eval --config fixtures/plants/upper-penstock.json
+cargo run -p energy-sim-cli -- hydro eval --config fixtures/plants/clearwater-diversion.json
 
 # Session: 120 s with loads → checkpoint.json, series.csv, events.jsonl
 cargo run -p energy-sim-cli -- session run \

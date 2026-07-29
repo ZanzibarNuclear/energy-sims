@@ -173,8 +173,8 @@ mod tests {
     use super::*;
 
     fn plant_json() -> String {
-        std::fs::read_to_string("fixtures/plants/upper-penstock.json").unwrap_or_else(|_| {
-            std::fs::read_to_string("../../fixtures/plants/upper-penstock.json").unwrap()
+        std::fs::read_to_string("fixtures/plants/clearwater-diversion.json").unwrap_or_else(|_| {
+            std::fs::read_to_string("../../fixtures/plants/clearwater-diversion.json").unwrap()
         })
     }
 

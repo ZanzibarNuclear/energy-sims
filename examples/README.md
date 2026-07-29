@@ -4,7 +4,7 @@
 
 ```sh
 # Steady-state plant eval
-cargo run -p energy-sim-cli -- hydro eval --config fixtures/plants/upper-penstock.json
+cargo run -p energy-sim-cli -- hydro eval --config fixtures/plants/clearwater-diversion.json
 
 # Run station for 120 s with lights + EV load; write checkpoint / series / events
 cargo run -p energy-sim-cli -- session run \

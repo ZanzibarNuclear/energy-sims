@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "kind": "energy-session",
-  "id": "mill-brook-utility",
+  "id": "clearwater-utility",
   "plant": {
     "schemaVersion": 1,
     "kind": "hydro-plant",
-    "id": "upper-penstock",
-    "label": "Upper Penstock diversion",
+    "id": "clearwater-diversion",
+    "label": "Clearwater Diversion (Clearwater Run)",
     "stream": {
       "availableFlowM3s": 0.05
     },

@@ -23,7 +23,7 @@ Existing prototypes in `welcome` and `atomic-adventures` are **inspiration only*
 
 ### What the game needs
 
-In Part I of Atomic Adventures, Zanzibar restores a campus diversion plant (Mill Brook / Upper Penstock style). Hydro generation energizes the **utility station**, which powers outlets, appliances, holo-readers, EV charging, and lighting. Players should:
+In Part I of Atomic Adventures, Zanzibar restores a campus diversion plant on **Clearwater Run** (Clearwater Diversion). Hydro generation energizes the **utility station**, which powers outlets, appliances, holo-readers, EV charging, and lighting. Players should:
 
 - Configure and run a hydro plant with real physical parameters (head, flow, penstock geometry, losses, efficiency).
 - Feed generated power into a **local station grid**.
@@ -200,8 +200,8 @@ Operator and environment inputs (gate openings, debris, leakage, stream availabi
 {
   "schemaVersion": 1,
   "kind": "hydro-plant",
-  "id": "upper-penstock",
-  "label": "Upper Penstock diversion",
+  "id": "clearwater-diversion",
+  "label": "Clearwater Diversion (Clearwater Run)",
   "stream": {
     "availableFlowM3s": 0.05
   },

@@ -292,8 +292,8 @@ mod tests {
     const SAMPLE: &str = r#"{
       "schemaVersion": 1,
       "kind": "hydro-plant",
-      "id": "upper-penstock",
-      "label": "Upper Penstock diversion",
+      "id": "clearwater-diversion",
+      "label": "Clearwater Diversion (Clearwater Run)",
       "stream": { "availableFlowM3s": 0.05 },
       "penstock": {
         "grossHeadM": 25.0,
@@ -321,7 +321,7 @@ mod tests {
     #[test]
     fn parse_sample_allows_package_id() {
         let cfg = HydroPlantConfig::from_json(SAMPLE).expect("valid sample");
-        assert_eq!(cfg.id, "upper-penstock");
+        assert_eq!(cfg.id, "clearwater-diversion");
         assert_eq!(
             cfg.turbine.package_id.as_deref(),
             Some("acme-micro-pelton-3kw")

@@ -194,7 +194,7 @@ mod tests {
 
     fn sample_plant() -> HydroPlantConfig {
         HydroPlantConfig::from_json(include_str!(
-            "../../../../fixtures/plants/upper-penstock.json"
+            "../../../../fixtures/plants/clearwater-diversion.json"
         ))
         .expect("fixture")
     }
@@ -269,7 +269,7 @@ mod tests {
 
     #[test]
     fn sample_fixture_produces_plausible_kw() {
-        // Upper Penstock teaching plant: order of a few kW, not MW.
+        // Clearwater Diversion teaching plant: order of a few kW, not MW.
         let plant = sample_plant();
         let eval = evaluate_plant(&plant).unwrap();
         assert!(

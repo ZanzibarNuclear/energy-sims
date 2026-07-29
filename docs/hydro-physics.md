@@ -32,7 +32,7 @@ Override \(\rho\) and \(g\) under `fluid` in plant JSON.
 
 ## Plant JSON
 
-See `fixtures/plants/upper-penstock.json` for a complete example. Required fields:
+See `fixtures/plants/clearwater-diversion.json` for a complete example (Clearwater Run campus plant). Required fields:
 
 | Path | Role |
 | --- | --- |
