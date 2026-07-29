@@ -17,3 +17,8 @@ authors = ["Zanzibar Nuclear"]
 [workspace.dependencies]
 energy-sim-core = { path = "crates/energy-sim-core" }
 energy-sim-runtime = { path = "crates/energy-sim-runtime" }
+
+# Shared third-party deps (versions pinned at workspace root)
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
