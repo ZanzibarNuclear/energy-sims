@@ -1,0 +1,19 @@
+[workspace]
+members = [
+    "crates/energy-sim-core",
+    "crates/energy-sim-runtime",
+    "crates/energy-sim-cli",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/ZanzibarNuclear/energy-sims"
+rust-version = "1.76"
+authors = ["Zanzibar Nuclear"]
+
+[workspace.dependencies]
+energy-sim-core = { path = "crates/energy-sim-core" }
+energy-sim-runtime = { path = "crates/energy-sim-runtime" }

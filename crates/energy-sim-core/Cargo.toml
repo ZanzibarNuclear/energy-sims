@@ -1,0 +1,13 @@
+[package]
+name = "energy-sim-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "Physics, units, and pure evaluation for the energy simulation engine."
+
+[lib]
+name = "energy_sim_core"
+path = "src/lib.rs"

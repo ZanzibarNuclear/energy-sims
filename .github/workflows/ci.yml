@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: cargo test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Metadata
+        run: cargo metadata --format-version 1 --no-deps >/dev/null
+
+      - name: Test
+        run: cargo test
+
+      - name: CLI banner
+        run: cargo run -p energy-sim-cli

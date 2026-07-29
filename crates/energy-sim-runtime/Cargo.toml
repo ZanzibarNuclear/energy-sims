@@ -1,0 +1,16 @@
+[package]
+name = "energy-sim-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "Sessions, time advancement, ramps, station grid, and operational history."
+
+[lib]
+name = "energy_sim_runtime"
+path = "src/lib.rs"
+
+[dependencies]
+energy-sim-core.workspace = true
