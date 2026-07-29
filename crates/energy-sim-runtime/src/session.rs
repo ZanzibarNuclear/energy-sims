@@ -7,7 +7,7 @@ use energy_sim_core::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::dynamics::approach;
+use crate::dynamics::{ensure_ramp, RampSegment};
 use crate::error::{Result, RuntimeError};
 use crate::export::{write_events_jsonl, write_series_csv};
 use crate::grid::{GridStatus, StationGrid, StationGridConfig};
@@ -156,6 +156,10 @@ struct CheckpointDocument {
     actual_power_kw: f64,
     actual_speed_rpm: f64,
     energy_generated_kwh: f64,
+    #[serde(default)]
+    power_ramp: Option<RampSegment>,
+    #[serde(default)]
+    speed_ramp: Option<RampSegment>,
     events: Vec<Event>,
     samples: Vec<Sample>,
     /// Load drawing map (id → drawing); used by PR4 grid.
@@ -173,6 +177,8 @@ pub struct Session {
     actual_power_kw: f64,
     actual_speed_rpm: f64,
     energy_generated_kwh: f64,
+    power_ramp: RampSegment,
+    speed_ramp: RampSegment,
     events: Vec<Event>,
     samples: Vec<Sample>,
     load_drawing: std::collections::BTreeMap<String, bool>,
@@ -210,6 +216,8 @@ impl Session {
             actual_power_kw: 0.0,
             actual_speed_rpm: 0.0,
             energy_generated_kwh: 0.0,
+            power_ramp: RampSegment::settled(0.0, 0.0),
+            speed_ramp: RampSegment::settled(0.0, 0.0),
             events,
             samples: Vec::new(),
             load_drawing,
@@ -452,6 +460,8 @@ impl Session {
             actual_power_kw: self.actual_power_kw,
             actual_speed_rpm: self.actual_speed_rpm,
             energy_generated_kwh: self.energy_generated_kwh,
+            power_ramp: Some(self.power_ramp),
+            speed_ramp: Some(self.speed_ramp),
             events: self.events.clone(),
             samples: self.samples.clone(),
             load_drawing,
@@ -484,6 +494,12 @@ impl Session {
             actual_power_kw: doc.actual_power_kw,
             actual_speed_rpm: doc.actual_speed_rpm,
             energy_generated_kwh: doc.energy_generated_kwh,
+            power_ramp: doc
+                .power_ramp
+                .unwrap_or_else(|| RampSegment::settled(doc.actual_power_kw, doc.sim_time_s)),
+            speed_ramp: doc
+                .speed_ramp
+                .unwrap_or_else(|| RampSegment::settled(doc.actual_speed_rpm, doc.sim_time_s)),
             events: doc.events,
             samples: doc.samples,
             load_drawing: doc.load_drawing,
@@ -509,30 +525,38 @@ impl Session {
             return Ok(());
         }
         let target = self.evaluate_target()?;
-        let dyn_cfg = &self.config.plant.turbine.dynamics;
+        let dyn_cfg = self.config.plant.turbine.dynamics.clone();
+        let t0 = self.sim_time_s;
 
-        let power_before = self.actual_power_kw;
-        self.actual_power_kw = approach(
+        // Retarget S-curve segments if steady-state targets changed (at step start).
+        ensure_ramp(
+            &mut self.power_ramp,
             self.actual_power_kw,
             target.electrical_power_kw,
-            dt_s,
+            t0,
             dyn_cfg.power_ramp_up_s,
             dyn_cfg.power_ramp_down_s,
         );
-        self.actual_speed_rpm = approach(
+        ensure_ramp(
+            &mut self.speed_ramp,
             self.actual_speed_rpm,
             target.turbine_speed_rpm,
-            dt_s,
+            t0,
             dyn_cfg.speed_ramp_up_s,
             dyn_cfg.speed_ramp_down_s,
         );
+
+        let power_before = self.actual_power_kw;
+        let t1 = t0 + dt_s;
+        self.actual_power_kw = self.power_ramp.value_at(t1);
+        self.actual_speed_rpm = self.speed_ramp.value_at(t1);
 
         // Trapezoidal energy integral of actual power (kW · s → kWh).
         let avg_kw = 0.5 * (power_before + self.actual_power_kw);
         let joules = avg_kw * 1000.0 * dt_s;
         self.energy_generated_kwh += joules / WATT_S_PER_KWH;
 
-        self.sim_time_s += dt_s;
+        self.sim_time_s = t1;
         self.note_grid_status_change();
         Ok(())
     }
@@ -624,42 +648,60 @@ mod tests {
     #[test]
     fn spin_up_curve_over_ramp() {
         let mut session = Session::from_json(&plant_json()).unwrap();
-        session.set_sample_period_s(5.0);
+        session.set_sample_period_s(1.0);
         session.start().unwrap();
-        let report = session.advance_secs(30.0).unwrap();
-        assert!(report.samples_added >= 5);
+        // Mid-ramp (default powerRampUpS = 20): S-curve not yet at target.
+        session.advance_secs(10.0).unwrap();
+        let mid = session.snapshot();
+        assert!(
+            mid.electrical_power_kw > 0.0
+                && mid.electrical_power_kw < mid.target_electrical_power_kw * 0.95,
+            "mid-ramp power={} target={}",
+            mid.electrical_power_kw,
+            mid.target_electrical_power_kw
+        );
+        // At configured duration, should be on target.
+        session.advance_secs(10.0).unwrap();
+        let full = session.snapshot();
+        assert!(
+            (full.electrical_power_kw - full.target_electrical_power_kw).abs() < 1e-6,
+            "expected full power at 20s: got {} target {}",
+            full.electrical_power_kw,
+            full.target_electrical_power_kw
+        );
+        // Samples show S-shape (mid sample between first and last progress).
         let samples = session.samples();
-        // Power should rise over time toward target (not jump to full on first sample after t=0).
-        let first_power = samples
+        let p5 = samples
             .iter()
-            .find(|s| s.sim_time_s > 0.0)
-            .map(|s| s.electrical_power_kw)
-            .unwrap();
-        let last = samples.last().unwrap();
-        assert!(
-            last.electrical_power_kw > first_power,
-            "expected ramp-up: first={first_power} last={}",
-            last.electrical_power_kw
-        );
-        assert!(
-            (last.electrical_power_kw - last.target_electrical_power_kw).abs() < 0.05
-                || last.electrical_power_kw <= last.target_electrical_power_kw + 0.05,
-            "should approach target"
-        );
+            .find(|s| (s.sim_time_s - 5.0).abs() < 0.01)
+            .unwrap()
+            .electrical_power_kw;
+        let p10 = samples
+            .iter()
+            .find(|s| (s.sim_time_s - 10.0).abs() < 0.01)
+            .unwrap()
+            .electrical_power_kw;
+        let p15 = samples
+            .iter()
+            .find(|s| (s.sim_time_s - 15.0).abs() < 0.01)
+            .unwrap()
+            .electrical_power_kw;
+        // Second half of S-curve gains more than first half from 0→mid→full pattern:
+        // smoothstep: gain 0→0.5 > gain at start; check monotonic and not linear-only.
+        assert!(p5 < p10 && p10 < p15);
+        assert!(p10 - p5 > p5 - 0.0); // accelerating through first half
     }
 
     #[test]
     fn spin_down_on_stop() {
         let mut session = Session::from_json(&plant_json()).unwrap();
-        session.set_sample_period_s(5.0);
+        session.set_sample_period_s(1.0);
         session.start().unwrap();
-        session.advance_secs(30.0).unwrap();
+        session.advance_secs(20.0).unwrap();
         let power_at_full = session.snapshot().electrical_power_kw;
         assert!(power_at_full > 1.0);
 
-        // stop() sets phase Stopped which blocks advance — use apply offline + keep running
-        // for spin-down test: design says stop commands targets offline; allow tick while stopped
-        // by re-opening running with gate closed.
+        // stop() sets phase Stopped which blocks advance — close gate while running.
         session.phase = SessionPhase::Running;
         session
             .apply(Command::SetHydroInput {
@@ -669,11 +711,12 @@ mod tests {
                 online: Some(true),
             })
             .unwrap();
-        session.advance_secs(120.0).unwrap();
+        // Default powerRampDownS = 25 s.
+        session.advance_secs(25.0).unwrap();
         let after = session.snapshot().electrical_power_kw;
         assert!(
-            after < power_at_full * 0.15,
-            "expected spin-down: was {power_at_full}, now {after}"
+            after.abs() < 1e-6,
+            "expected spin-down complete at 25s: was {power_at_full}, now {after}"
         );
     }
 

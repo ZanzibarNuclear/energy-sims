@@ -19,10 +19,10 @@
     "maxSafeFlowM3s": 0.06,
     "designSpeedRpm": 1000.0,
     "dynamics": {
-      "speedRampUpS": 30.0,
-      "speedRampDownS": 45.0,
-      "powerRampUpS": 25.0,
-      "powerRampDownS": 40.0
+      "speedRampUpS": 20.0,
+      "speedRampDownS": 25.0,
+      "powerRampUpS": 20.0,
+      "powerRampDownS": 25.0
     }
   },
   "generator": {

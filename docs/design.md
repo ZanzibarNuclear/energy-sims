@@ -349,11 +349,12 @@ Many physical components need a visible transition between idle and steady opera
 ```text
 on each advance/tick of Δt seconds:
   target = steady_state_from_inputs(config, operator, environment)
-  actual = approach(actual, target, Δt, ramp_up_s, ramp_down_s)
+  if target changed: start S-curve segment (start=actual, duration=ramp_up/down_s)
+  actual = segment.value_at(sim_time)   # smoothstep over fixed duration
   emit sample(actual)   # graphs show the curve
 ```
 
-Suggested Stage 1 approach: **linear ramp** (or exponential first-order lag) with separate **ramp-up** and **ramp-down** times per quantity. Defaults should feel longer than one second (e.g. turbine speed ~15–60 s to full; exact numbers are tuning knobs in plant config).
+Stage 1 uses a **fixed-duration S-curve** (Hermite smoothstep \(S(u)=3u^2-2u^3\)) with separate **ramp-up** and **ramp-down** times per quantity. At the end of the allotted seconds, actual **equals** the target (no lag tail). Defaults ~20 s up / ~25 s down (teaching-scale micro-hydro spin-up); override in plant config.
 
 ```json
 {
@@ -361,10 +362,10 @@ Suggested Stage 1 approach: **linear ramp** (or exponential first-order lag) wit
     "efficiency": 0.75,
     "designFlowM3s": 0.04,
     "dynamics": {
-      "speedRampUpS": 30,
-      "speedRampDownS": 45,
-      "powerRampUpS": 25,
-      "powerRampDownS": 40
+      "speedRampUpS": 20,
+      "speedRampDownS": 25,
+      "powerRampUpS": 20,
+      "powerRampDownS": 25
     }
   }
 }

@@ -11,7 +11,7 @@ pub mod persistence;
 pub mod session;
 pub mod snapshot;
 
-pub use dynamics::approach;
+pub use dynamics::{approach, ensure_ramp, smoothstep, RampSegment};
 pub use error::{Result, RuntimeError};
 pub use export::{write_events_jsonl, write_series_csv};
 pub use grid::{

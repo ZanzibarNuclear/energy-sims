@@ -85,7 +85,10 @@ pub struct TurbineConfig {
     pub package_id: Option<String>,
 }
 
-/// Linear ramp durations (seconds) toward steady-state targets.
+/// S-curve ramp durations (seconds) from current actual to a new steady-state target.
+///
+/// Runtime uses a smoothstep curve fitted to these durations: at the end of
+/// `*RampUpS` / `*RampDownS`, actual equals target exactly.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TurbineDynamics {
@@ -111,16 +114,16 @@ impl Default for TurbineDynamics {
 }
 
 fn default_speed_ramp_up() -> f64 {
-    30.0
+    20.0
 }
 fn default_speed_ramp_down() -> f64 {
-    45.0
-}
-fn default_power_ramp_up() -> f64 {
     25.0
 }
+fn default_power_ramp_up() -> f64 {
+    20.0
+}
 fn default_power_ramp_down() -> f64 {
-    40.0
+    25.0
 }
 
 fn default_design_speed_rpm() -> f64 {

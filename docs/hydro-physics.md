@@ -90,6 +90,17 @@ let eval = evaluate_plant(&plant)?;
 
 ## Energy over time
 
-Energy is the time-integral of **actual** electrical power. Steady segments use this evaluation directly; when the runtime ramps (PR3), integration uses ramped power, not instantaneous jumps to the target.
+Energy is the time-integral of **actual** electrical power. Steady segments use this evaluation directly; when the runtime ramps, integration uses ramped power, not instantaneous jumps to the target.
+
+## Dynamics (ramp-up / ramp-down)
+
+Plant config `turbine.dynamics` sets **time to complete** an S-curve transition (smoothstep) from the current actual to a new target:
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `speedRampUpS` / `powerRampUpS` | 20 | Seconds to reach a higher target |
+| `speedRampDownS` / `powerRampDownS` | 25 | Seconds to reach a lower target |
+
+At \(t = t_\mathrm{start} + \mathrm{duration}\), actual equals target exactly. Mid-ramp target changes restart a new segment from the current actual.
 
 See [design.md](design.md) for architecture and key decisions.
