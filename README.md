@@ -27,6 +27,12 @@ cargo run -p energy-sim-cli -- session run \
   --commands examples/commands-lights-ev.json
 ```
 
+```sh
+# Remote API (REST + WebSocket)
+cargo run -p energy-sim-server -- --listen 127.0.0.1:8787
+# POST /v1/sessions  GET /v1/sessions/{id}  WS /v1/sessions/{id}/live
+```
+
 Requires a recent stable Rust toolchain (MSRV **1.76**). More workflows in [examples/README.md](examples/README.md).
 
 ## Workspace layout
@@ -47,7 +53,7 @@ energy-sims/
     api.md                   # library, CLI, HTTP (stub → PR5/PR7)
 ```
 
-Later crates (not in the workspace yet): `energy-sim-server`, `energy-sim-wasm`.
+Also in the workspace: `energy-sim-server` (REST + WebSocket). Optional: `energy-sim-wasm`.
 
 ## Stage 1 (planned)
 

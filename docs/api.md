@@ -51,6 +51,46 @@ energy-sim session status --checkpoint ./run/checkpoint.json
 
 `--commands` is a JSON array of `Command` objects, e.g. `examples/commands-lights-ev.json`.
 
-## Remote service
+## Remote service (`energy-sim-server`)
 
-REST + WebSocket shapes land with PR7. Sketch in [design.md](design.md).
+```bash
+cargo run -p energy-sim-server -- --listen 127.0.0.1:8787
+```
+
+### REST
+
+| Method | Path | Body | Response |
+| --- | --- | --- | --- |
+| GET | `/health` | — | `{ ok, engine }` |
+| POST | `/v1/sessions` | plant or session JSON | `{ sessionId, snapshot }` |
+| GET | `/v1/sessions/{id}` | — | `Snapshot` |
+| POST | `/v1/sessions/{id}/start` | — | `Snapshot` |
+| POST | `/v1/sessions/{id}/stop` | — | `Snapshot` |
+| POST | `/v1/sessions/{id}/advance` | `{ durationSecs, commands? }` | `AdvanceReport` |
+| POST | `/v1/sessions/{id}/tick` | `{ dtSecs }` | `Snapshot` |
+| POST | `/v1/sessions/{id}/commands` | `{ commands: Command[] }` | `Snapshot` |
+| GET | `/v1/sessions/{id}/history?fromSecs=&toSecs=` | — | `{ events, samples }` |
+| POST | `/v1/sessions/{id}/checkpoint` | — | full checkpoint JSON |
+
+### WebSocket live channel
+
+`WS /v1/sessions/{id}/live`
+
+**Server → client**
+
+```json
+{ "type": "snapshot", "snapshot": { "...": "..." } }
+{ "type": "error", "message": "..." }
+{ "type": "pong" }
+```
+
+**Client → server**
+
+```json
+{ "type": "tick", "dtSecs": 1.0 }
+{ "type": "advance", "durationSecs": 60 }
+{ "type": "command", "command": { "type": "set_load", "id": "lighting.main", "drawing": true } }
+{ "type": "ping" }
+```
+
+In-memory sessions only (Stage 1). Auth and multi-tenant storage are later.
