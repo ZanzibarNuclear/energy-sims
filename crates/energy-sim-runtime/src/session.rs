@@ -435,7 +435,8 @@ impl Session {
         write_events_jsonl(path, &self.events)
     }
 
-    pub fn save_checkpoint(&self, path: impl AsRef<Path>) -> Result<()> {
+    /// Serialize checkpoint document as JSON value (for atomic writers / tests).
+    pub fn checkpoint_value(&self) -> Result<serde_json::Value> {
         let load_drawing = self
             .grid
             .as_ref()
@@ -455,8 +456,12 @@ impl Session {
             samples: self.samples.clone(),
             load_drawing,
         };
-        let file = std::fs::File::create(path)?;
-        serde_json::to_writer_pretty(file, &doc)?;
+        Ok(serde_json::to_value(doc)?)
+    }
+
+    pub fn save_checkpoint(&self, path: impl AsRef<Path>) -> Result<()> {
+        let value = self.checkpoint_value()?;
+        crate::persistence::atomic_write_json(path.as_ref(), &value)?;
         Ok(())
     }
 

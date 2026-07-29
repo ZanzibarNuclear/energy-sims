@@ -7,6 +7,7 @@ pub mod error;
 pub mod export;
 pub mod grid;
 pub mod history;
+pub mod persistence;
 pub mod session;
 pub mod snapshot;
 
@@ -18,6 +19,10 @@ pub use grid::{
     StationGridConfig,
 };
 pub use history::{Event, EventKind, Sample};
+pub use persistence::{
+    atomic_write_json, RunManifest, RunPackage, CHECKPOINT_FILE, EVENTS_FILE, MANIFEST_FILE,
+    SERIES_FILE,
+};
 pub use session::{
     AdvanceReport, Command, HydroOperatorState, Session, SessionConfig, SessionPhase,
 };

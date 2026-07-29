@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use energy_sim_core::{evaluate_plant, evaluate_plant_with_inputs, HydroPlantConfig, OperatorInputs};
-use energy_sim_runtime::{Command, Session};
+use energy_sim_runtime::{Command, RunPackage, Session};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -301,19 +301,15 @@ fn apply_commands_file(session: &mut Session, path: Option<&Path>) -> Result<()>
 }
 
 fn write_session_outputs(session: &Session, out_dir: &Path) -> Result<()> {
-    fs::create_dir_all(out_dir)
-        .with_context(|| format!("creating out-dir {}", out_dir.display()))?;
-    let ckpt = out_dir.join("checkpoint.json");
-    let events = out_dir.join("events.jsonl");
-    let series = out_dir.join("series.csv");
-    session.save_checkpoint(&ckpt)?;
-    session.export_events_jsonl(&events)?;
-    session.export_series_csv(&series)?;
+    let pkg = RunPackage::new(out_dir);
+    pkg.write_all(session)
+        .with_context(|| format!("writing run package {}", out_dir.display()))?;
     eprintln!(
-        "wrote {}, {}, {}",
-        ckpt.display(),
-        events.display(),
-        series.display()
+        "wrote {}, {}, {}, {}",
+        pkg.checkpoint_path().display(),
+        pkg.events_path().display(),
+        pkg.series_path().display(),
+        pkg.manifest_path().display()
     );
     Ok(())
 }
