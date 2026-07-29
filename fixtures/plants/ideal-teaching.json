@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "kind": "hydro-plant",
+  "id": "ideal-teaching",
+  "label": "Ideal elevation-only teaching plant (no losses)",
+  "stream": {
+    "availableFlowM3s": 0.04
+  },
+  "penstock": {
+    "grossHeadM": 25.0,
+    "lengthM": 100.0,
+    "diameterM": 0.30,
+    "frictionFactor": 0.0,
+    "minorLossCoefficient": 0.0
+  },
+  "turbine": {
+    "efficiency": 0.80,
+    "designFlowM3s": 0.04,
+    "maxSafeFlowM3s": 0.05,
+    "designSpeedRpm": 900.0
+  },
+  "generator": {
+    "efficiency": 0.95,
+    "ratedPowerKw": 12.0
+  }
+}

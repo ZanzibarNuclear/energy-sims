@@ -1,0 +1,20 @@
+[package]
+name = "energy-sim-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "Headless CLI for the energy simulation engine."
+
+[[bin]]
+name = "energy-sim"
+path = "src/main.rs"
+
+[dependencies]
+energy-sim-core.workspace = true
+energy-sim-runtime.workspace = true
+anyhow = { workspace = true }
+clap = { workspace = true }
+serde_json = { workspace = true }

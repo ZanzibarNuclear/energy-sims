@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "kind": "hydro-plant",
+  "id": "clearwater-diversion",
+  "label": "Clearwater Diversion (Clearwater Run)",
+  "stream": {
+    "availableFlowM3s": 0.05
+  },
+  "penstock": {
+    "grossHeadM": 25.0,
+    "lengthM": 180.0,
+    "diameterM": 0.25,
+    "frictionFactor": 0.02,
+    "minorLossCoefficient": 0.5
+  },
+  "turbine": {
+    "efficiency": 0.75,
+    "designFlowM3s": 0.04,
+    "maxSafeFlowM3s": 0.06,
+    "designSpeedRpm": 1000.0,
+    "dynamics": {
+      "speedRampUpS": 20.0,
+      "speedRampDownS": 25.0,
+      "powerRampUpS": 20.0,
+      "powerRampDownS": 25.0
+    }
+  },
+  "generator": {
+    "efficiency": 0.92,
+    "ratedPowerKw": 8.0
+  },
+  "fluid": {
+    "densityKgM3": 1000.0,
+    "gravityMs2": 9.80665
+  }
+}
