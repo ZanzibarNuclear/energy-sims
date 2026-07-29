@@ -77,9 +77,50 @@ pub struct TurbineConfig {
     /// Design rotational speed (rpm) used as the steady-state speed target.
     #[serde(default = "default_design_speed_rpm")]
     pub design_speed_rpm: f64,
+    /// Ramp times for speed and power (runtime uses these).
+    #[serde(default)]
+    pub dynamics: TurbineDynamics,
     /// Optional catalog package id (ignored in Stage 1).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub package_id: Option<String>,
+}
+
+/// Linear ramp durations (seconds) toward steady-state targets.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TurbineDynamics {
+    #[serde(default = "default_speed_ramp_up")]
+    pub speed_ramp_up_s: f64,
+    #[serde(default = "default_speed_ramp_down")]
+    pub speed_ramp_down_s: f64,
+    #[serde(default = "default_power_ramp_up")]
+    pub power_ramp_up_s: f64,
+    #[serde(default = "default_power_ramp_down")]
+    pub power_ramp_down_s: f64,
+}
+
+impl Default for TurbineDynamics {
+    fn default() -> Self {
+        Self {
+            speed_ramp_up_s: default_speed_ramp_up(),
+            speed_ramp_down_s: default_speed_ramp_down(),
+            power_ramp_up_s: default_power_ramp_up(),
+            power_ramp_down_s: default_power_ramp_down(),
+        }
+    }
+}
+
+fn default_speed_ramp_up() -> f64 {
+    30.0
+}
+fn default_speed_ramp_down() -> f64 {
+    45.0
+}
+fn default_power_ramp_up() -> f64 {
+    25.0
+}
+fn default_power_ramp_down() -> f64 {
+    40.0
 }
 
 fn default_design_speed_rpm() -> f64 {
@@ -207,6 +248,18 @@ impl HydroPlantConfig {
             return Err(CoreError::InvalidConfig(
                 "turbine.designSpeedRpm must be >= 0".into(),
             ));
+        }
+        for (name, v) in [
+            ("speedRampUpS", self.turbine.dynamics.speed_ramp_up_s),
+            ("speedRampDownS", self.turbine.dynamics.speed_ramp_down_s),
+            ("powerRampUpS", self.turbine.dynamics.power_ramp_up_s),
+            ("powerRampDownS", self.turbine.dynamics.power_ramp_down_s),
+        ] {
+            if v < 0.0 {
+                return Err(CoreError::InvalidConfig(format!(
+                    "turbine.dynamics.{name} must be >= 0"
+                )));
+            }
         }
         if !(0.0..=1.0).contains(&self.generator.efficiency) {
             return Err(CoreError::InvalidConfig(

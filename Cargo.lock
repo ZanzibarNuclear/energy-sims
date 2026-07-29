@@ -24,6 +24,9 @@ name = "energy-sim-runtime"
 version = "0.1.0"
 dependencies = [
  "energy-sim-core",
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]

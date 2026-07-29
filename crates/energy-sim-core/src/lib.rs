@@ -14,6 +14,7 @@ pub use error::{CoreError, Result};
 pub use hydro::{
     evaluate_plant, evaluate_plant_with_inputs, FluidConfig, GeneratorConfig, HydroEvaluation,
     HydroPlantConfig, OperatorInputs, PenstockConfig, StreamConfig, TurbineConfig,
+    TurbineDynamics,
 };
 pub use units::{kw_to_w, w_to_kw};
 

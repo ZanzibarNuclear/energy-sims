@@ -1,7 +1,22 @@
 //! Simulation runtime: sessions, clock, ramps, station grid, and history.
 //!
-//! Builds on [`energy_sim_core`] for pure evaluation. Stage 1 will add
-//! session lifecycle, ramp dynamics, bus balance, and file-oriented exports.
+//! Builds on [`energy_sim_core`] for pure evaluation.
+
+pub mod dynamics;
+pub mod error;
+pub mod export;
+pub mod history;
+pub mod session;
+pub mod snapshot;
+
+pub use dynamics::approach;
+pub use error::{Result, RuntimeError};
+pub use export::{write_events_jsonl, write_series_csv};
+pub use history::{Event, EventKind, Sample};
+pub use session::{
+    AdvanceReport, Command, HydroOperatorState, Session, SessionConfig, SessionPhase,
+};
+pub use snapshot::Snapshot;
 
 use energy_sim_core::VERSION as CORE_VERSION;
 

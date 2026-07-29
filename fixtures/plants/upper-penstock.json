@@ -17,7 +17,13 @@
     "efficiency": 0.75,
     "designFlowM3s": 0.04,
     "maxSafeFlowM3s": 0.06,
-    "designSpeedRpm": 1000.0
+    "designSpeedRpm": 1000.0,
+    "dynamics": {
+      "speedRampUpS": 30.0,
+      "speedRampDownS": 45.0,
+      "powerRampUpS": 25.0,
+      "powerRampDownS": 40.0
+    }
   },
   "generator": {
     "efficiency": 0.92,
