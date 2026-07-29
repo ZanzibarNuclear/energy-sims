@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::dynamics::approach;
 use crate::error::{Result, RuntimeError};
 use crate::export::{write_events_jsonl, write_series_csv};
+use crate::grid::{GridStatus, StationGrid, StationGridConfig};
 use crate::history::{Event, EventKind, Sample};
 use crate::snapshot::Snapshot;
 
@@ -22,7 +23,7 @@ pub enum SessionPhase {
     Stopped,
 }
 
-/// Composite session configuration (plant required; grid optional until PR4).
+/// Composite session configuration (plant required; grid optional).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionConfig {
@@ -32,9 +33,9 @@ pub struct SessionConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
     pub plant: HydroPlantConfig,
-    /// Opaque grid document for PR4; ignored for balance until grid module lands.
+    /// Optional station grid (loads + brownout policy).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub grid: Option<serde_json::Value>,
+    pub grid: Option<StationGridConfig>,
 }
 
 fn default_session_kind() -> String {
@@ -67,6 +68,9 @@ impl SessionConfig {
 
         let config: Self = serde_json::from_value(value)?;
         config.plant.validate()?;
+        if let Some(ref grid) = config.grid {
+            grid.validate()?;
+        }
         if config.schema_version == 0 {
             return Err(RuntimeError::InvalidConfig(
                 "schemaVersion must be >= 1".into(),
@@ -172,6 +176,8 @@ pub struct Session {
     events: Vec<Event>,
     samples: Vec<Sample>,
     load_drawing: std::collections::BTreeMap<String, bool>,
+    grid: Option<StationGrid>,
+    last_grid_status: Option<GridStatus>,
     /// Sample period while integrating long intervals (seconds).
     sample_period_s: f64,
 }
@@ -191,6 +197,11 @@ impl Session {
             message: Some(format!("plant {}", config.plant.id)),
             detail: None,
         });
+        let grid = config.grid.clone().map(StationGrid::new);
+        let mut load_drawing = std::collections::BTreeMap::new();
+        if let Some(ref g) = grid {
+            load_drawing = g.drawing.clone();
+        }
         Self {
             config,
             phase: SessionPhase::Configured,
@@ -201,7 +212,9 @@ impl Session {
             energy_generated_kwh: 0.0,
             events,
             samples: Vec::new(),
-            load_drawing: std::collections::BTreeMap::new(),
+            load_drawing,
+            grid,
+            last_grid_status: None,
             sample_period_s: 1.0,
         }
     }
@@ -276,11 +289,15 @@ impl Session {
             }
             Command::SetLoad { id, drawing } => {
                 self.load_drawing.insert(id.clone(), drawing);
+                if let Some(ref mut grid) = self.grid {
+                    grid.set_load_drawing(&id, drawing)?;
+                }
                 self.push_event(
                     EventKind::Command,
                     Some(format!("set_load {id} drawing={drawing}")),
                     None,
                 );
+                self.note_grid_status_change();
             }
         }
         Ok(())
@@ -370,11 +387,22 @@ impl Session {
                 ),
             };
 
-        // Grid placeholders until PR4.
         let available = self.actual_power_kw;
-        let total_load_kw = 0.0;
-        let margin = available - total_load_kw;
-        let (bus_energized, grid_status) = grid_placeholder(available, total_load_kw);
+        let balance = if let Some(ref grid) = self.grid {
+            grid.balance(available)
+        } else {
+            crate::grid::GridBalance {
+                available_generation_kw: available,
+                total_load_kw: 0.0,
+                margin_kw: available,
+                bus_energized: available > 0.0,
+                status: if available > 0.0 {
+                    GridStatus::Surplus
+                } else {
+                    GridStatus::Ok
+                },
+            }
+        };
 
         Snapshot {
             sim_time_s: self.sim_time_s,
@@ -390,11 +418,11 @@ impl Session {
             turbine_speed_rpm: self.actual_speed_rpm,
             target_turbine_speed_rpm: target_speed,
             energy_generated_kwh: self.energy_generated_kwh,
-            available_generation_kw: available,
-            total_load_kw,
-            margin_kw: margin,
-            bus_energized,
-            grid_status: grid_status.into(),
+            available_generation_kw: balance.available_generation_kw,
+            total_load_kw: balance.total_load_kw,
+            margin_kw: balance.margin_kw,
+            bus_energized: balance.bus_energized,
+            grid_status: balance.status.as_str().into(),
             warnings,
         }
     }
@@ -408,6 +436,11 @@ impl Session {
     }
 
     pub fn save_checkpoint(&self, path: impl AsRef<Path>) -> Result<()> {
+        let load_drawing = self
+            .grid
+            .as_ref()
+            .map(|g| g.drawing.clone())
+            .unwrap_or_else(|| self.load_drawing.clone());
         let doc = CheckpointDocument {
             schema_version: 1,
             kind: "energy-sim-checkpoint".into(),
@@ -420,7 +453,7 @@ impl Session {
             energy_generated_kwh: self.energy_generated_kwh,
             events: self.events.clone(),
             samples: self.samples.clone(),
-            load_drawing: self.load_drawing.clone(),
+            load_drawing,
         };
         let file = std::fs::File::create(path)?;
         serde_json::to_writer_pretty(file, &doc)?;
@@ -431,6 +464,13 @@ impl Session {
         let file = std::fs::File::open(path)?;
         let doc: CheckpointDocument = serde_json::from_reader(file)?;
         doc.config.plant.validate()?;
+        if let Some(ref g) = doc.config.grid {
+            g.validate()?;
+        }
+        let mut grid = doc.config.grid.clone().map(StationGrid::new);
+        if let Some(ref mut g) = grid {
+            g.apply_drawing_map(&doc.load_drawing);
+        }
         Ok(Self {
             config: doc.config,
             phase: doc.phase,
@@ -442,8 +482,14 @@ impl Session {
             events: doc.events,
             samples: doc.samples,
             load_drawing: doc.load_drawing,
+            grid,
+            last_grid_status: None,
             sample_period_s: 1.0,
         })
+    }
+
+    pub fn grid(&self) -> Option<&StationGrid> {
+        self.grid.as_ref()
     }
 
     // --- internals ---
@@ -482,6 +528,7 @@ impl Session {
         self.energy_generated_kwh += joules / WATT_S_PER_KWH;
 
         self.sim_time_s += dt_s;
+        self.note_grid_status_change();
         Ok(())
     }
 
@@ -517,22 +564,43 @@ impl Session {
         });
     }
 
-    /// Access load drawing map (PR4 / tests).
+    fn note_grid_status_change(&mut self) {
+        let status = if let Some(ref grid) = self.grid {
+            grid.balance(self.actual_power_kw).status
+        } else {
+            return;
+        };
+        if self.last_grid_status == Some(status) {
+            return;
+        }
+        let prev = self.last_grid_status;
+        self.last_grid_status = Some(status);
+        if prev.is_none() {
+            return;
+        }
+        self.push_event(
+            EventKind::GridStatusChanged,
+            Some(format!("grid status → {status}")),
+            None,
+        );
+        if status == GridStatus::Brownout {
+            self.push_event(
+                EventKind::BrownoutEntered,
+                Some("demand exceeds supply (report-only)".into()),
+                None,
+            );
+        } else if prev == Some(GridStatus::Brownout) {
+            self.push_event(
+                EventKind::BrownoutCleared,
+                Some("brownout cleared".into()),
+                None,
+            );
+        }
+    }
+
+    /// Access load drawing map.
     pub fn load_drawing(&self) -> &std::collections::BTreeMap<String, bool> {
         &self.load_drawing
-    }
-}
-
-fn grid_placeholder(available_kw: f64, total_load_kw: f64) -> (bool, &'static str) {
-    let margin = available_kw - total_load_kw;
-    if available_kw <= 0.0 && total_load_kw <= 0.0 {
-        (false, "ok")
-    } else if margin < 0.0 {
-        (available_kw > 0.0, "shortage")
-    } else if margin > 0.0 {
-        (true, "surplus")
-    } else {
-        (available_kw > 0.0, "ok")
     }
 }
 
@@ -647,5 +715,66 @@ mod tests {
         let mut session = Session::from_json(&plant_json()).unwrap();
         let err = session.advance_secs(1.0).unwrap_err();
         assert!(matches!(err, RuntimeError::NotRunning(_)));
+    }
+
+    fn station_json() -> String {
+        std::fs::read_to_string("fixtures/stations/utility-station.json").unwrap_or_else(|_| {
+            std::fs::read_to_string("../../fixtures/stations/utility-station.json")
+                .expect("station fixture")
+        })
+    }
+
+    #[test]
+    fn grid_reports_brownout_under_heavy_load() {
+        let mut session = Session::from_json(&station_json()).unwrap();
+        session.start().unwrap();
+        // Snap ramps for a clear balance test.
+        session.config.plant.turbine.dynamics.power_ramp_up_s = 0.0;
+        session.config.plant.turbine.dynamics.speed_ramp_up_s = 0.0;
+        session.advance_secs(1.0).unwrap();
+
+        session
+            .apply(Command::SetLoad {
+                id: "lighting.main".into(),
+                drawing: true,
+            })
+            .unwrap();
+        session
+            .apply(Command::SetLoad {
+                id: "ev-charge.port-1".into(),
+                drawing: true,
+            })
+            .unwrap();
+        session
+            .apply(Command::SetLoad {
+                id: "kitchen.appliance".into(),
+                drawing: true,
+            })
+            .unwrap();
+
+        // Crush generation so load >> supply.
+        session
+            .apply(Command::SetHydroInput {
+                gate_opening: Some(0.05),
+                debris_clog_fraction: None,
+                leakage_fraction: None,
+                online: None,
+            })
+            .unwrap();
+        session.config.plant.turbine.dynamics.power_ramp_down_s = 0.0;
+        session.advance_secs(1.0).unwrap();
+
+        let snap = session.snapshot();
+        assert!(
+            snap.grid_status == "brownout" || snap.grid_status == "shortage",
+            "status={}",
+            snap.grid_status
+        );
+        assert!(snap.margin_kw < 0.0);
+        // Report-only: loads still marked drawing.
+        assert_eq!(
+            session.grid().unwrap().drawing.get("ev-charge.port-1"),
+            Some(&true)
+        );
     }
 }

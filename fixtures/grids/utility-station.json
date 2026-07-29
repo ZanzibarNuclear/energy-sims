@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "kind": "station-grid",
+  "id": "utility-station",
+  "label": "Campus utility station",
+  "loads": [
+    {
+      "id": "lighting.main",
+      "label": "Main building lights",
+      "ratingW": 400,
+      "priority": "normal",
+      "initiallyDrawing": false
+    },
+    {
+      "id": "holo-reader.library",
+      "label": "Library holo-reader",
+      "ratingW": 80,
+      "priority": "normal",
+      "initiallyDrawing": false
+    },
+    {
+      "id": "ev-charge.port-1",
+      "label": "EV charge port",
+      "ratingW": 3500,
+      "priority": "deferrable",
+      "initiallyDrawing": false
+    },
+    {
+      "id": "kitchen.appliance",
+      "label": "Kitchen outlet circuit",
+      "ratingW": 1200,
+      "priority": "normal",
+      "initiallyDrawing": false
+    }
+  ],
+  "brownout": {
+    "deficitThresholdW": 1,
+    "policy": "report-only"
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "kind": "energy-session",
+  "id": "mill-brook-utility",
+  "plant": {
+    "schemaVersion": 1,
+    "kind": "hydro-plant",
+    "id": "upper-penstock",
+    "label": "Upper Penstock diversion",
+    "stream": {
+      "availableFlowM3s": 0.05
+    },
+    "penstock": {
+      "grossHeadM": 25.0,
+      "lengthM": 180.0,
+      "diameterM": 0.25,
+      "frictionFactor": 0.02,
+      "minorLossCoefficient": 0.5
+    },
+    "turbine": {
+      "efficiency": 0.75,
+      "designFlowM3s": 0.04,
+      "maxSafeFlowM3s": 0.06,
+      "designSpeedRpm": 1000.0,
+      "dynamics": {
+        "speedRampUpS": 30.0,
+        "speedRampDownS": 45.0,
+        "powerRampUpS": 25.0,
+        "powerRampDownS": 40.0
+      }
+    },
+    "generator": {
+      "efficiency": 0.92,
+      "ratedPowerKw": 8.0
+    },
+    "fluid": {
+      "densityKgM3": 1000.0,
+      "gravityMs2": 9.80665
+    }
+  },
+  "grid": {
+    "schemaVersion": 1,
+    "kind": "station-grid",
+    "id": "utility-station",
+    "label": "Campus utility station",
+    "loads": [
+      {
+        "id": "lighting.main",
+        "label": "Main building lights",
+        "ratingW": 400,
+        "priority": "normal",
+        "initiallyDrawing": false
+      },
+      {
+        "id": "holo-reader.library",
+        "label": "Library holo-reader",
+        "ratingW": 80,
+        "priority": "normal",
+        "initiallyDrawing": false
+      },
+      {
+        "id": "ev-charge.port-1",
+        "label": "EV charge port",
+        "ratingW": 3500,
+        "priority": "deferrable",
+        "initiallyDrawing": false
+      },
+      {
+        "id": "kitchen.appliance",
+        "label": "Kitchen outlet circuit",
+        "ratingW": 1200,
+        "priority": "normal",
+        "initiallyDrawing": false
+      }
+    ],
+    "brownout": {
+      "deficitThresholdW": 1,
+      "policy": "report-only"
+    }
+  }
+}

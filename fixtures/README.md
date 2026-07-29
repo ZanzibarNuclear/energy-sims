@@ -9,4 +9,11 @@ Example plant and load configuration JSON for headless runs and tests.
 | `plants/upper-penstock.json` | Campus diversion plant sketch (with penstock losses) |
 | `plants/ideal-teaching.json` | Zero-loss elevation-only teaching case |
 
-Station load registries land with the grid (PR4). Keep committed fixtures small and teaching-oriented; ignore ad-hoc run outputs via the root `.gitignore`.
+## Grids & stations
+
+| File | Notes |
+| --- | --- |
+| `grids/utility-station.json` | Standalone load registry |
+| `stations/utility-station.json` | Composite session (plant + grid) |
+
+Keep committed fixtures small and teaching-oriented; ignore ad-hoc run outputs via the root `.gitignore`.

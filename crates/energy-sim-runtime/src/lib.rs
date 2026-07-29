@@ -5,6 +5,7 @@
 pub mod dynamics;
 pub mod error;
 pub mod export;
+pub mod grid;
 pub mod history;
 pub mod session;
 pub mod snapshot;
@@ -12,6 +13,10 @@ pub mod snapshot;
 pub use dynamics::approach;
 pub use error::{Result, RuntimeError};
 pub use export::{write_events_jsonl, write_series_csv};
+pub use grid::{
+    BrownoutConfig, GridBalance, GridStatus, LoadConfig, LoadPriority, StationGrid,
+    StationGridConfig,
+};
 pub use history::{Event, EventKind, Sample};
 pub use session::{
     AdvanceReport, Command, HydroOperatorState, Session, SessionConfig, SessionPhase,
