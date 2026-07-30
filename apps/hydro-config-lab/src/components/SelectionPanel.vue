@@ -9,6 +9,7 @@ import {
   type Site,
   type SiteSelection,
 } from "../lib/site";
+import { elevationOriginZ, GRID_STEP_M } from "../lib/viewBox";
 
 const props = defineProps<{
   site: Site;
@@ -22,16 +23,37 @@ const emit = defineEmits<{
 
 const label = computed(() => selectionLabel(props.selection));
 const point = computed(() => getSelectedPoint(props.site, props.selection));
+const elevOrigin = computed(() => elevationOriginZ(props.site.turbine?.zM));
+const elevRelative = computed(() =>
+  point.value ? point.value.zM - elevOrigin.value : 0,
+);
+const hasTurbineDatum = computed(() => props.site.turbine != null);
 
-function updateField(field: "sM" | "zM", raw: string) {
+function updateHorizontal(raw: string) {
   if (!props.selection || !point.value) return;
   const n = Number(raw);
   if (!Number.isFinite(n)) return;
-  const next = setSelectedPoint(props.site, props.selection, {
-    ...point.value,
-    [field]: n,
-  });
-  emit("update:site", next);
+  emit(
+    "update:site",
+    setSelectedPoint(props.site, props.selection, {
+      ...point.value,
+      sM: n,
+    }),
+  );
+}
+
+function updateElevationRelative(raw: string) {
+  if (!props.selection || !point.value) return;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return;
+  // Display elev = z - origin → z = elev + origin
+  emit(
+    "update:site",
+    setSelectedPoint(props.site, props.selection, {
+      ...point.value,
+      zM: n + elevOrigin.value,
+    }),
+  );
 }
 
 function onDelete() {
@@ -47,23 +69,30 @@ function onDelete() {
     <template v-if="selection && point">
       <p class="kind">{{ label }}</p>
       <label class="field">
-        <span>Distance s (m)</span>
+        <span>Horizontal distance (m)</span>
         <input
           type="number"
-          step="0.1"
+          :step="GRID_STEP_M"
           :value="roundCoord(point.sM)"
-          @change="updateField('sM', ($event.target as HTMLInputElement).value)"
+          @change="updateHorizontal(($event.target as HTMLInputElement).value)"
         />
       </label>
       <label class="field">
-        <span>Elevation z (m)</span>
+        <span>
+          {{
+            hasTurbineDatum ? "Elevation above turbine (m)" : "Elevation (m)"
+          }}
+        </span>
         <input
           type="number"
-          step="0.1"
-          :value="roundCoord(point.zM)"
-          @change="updateField('zM', ($event.target as HTMLInputElement).value)"
+          :step="GRID_STEP_M"
+          :value="roundCoord(elevRelative)"
+          @change="updateElevationRelative(($event.target as HTMLInputElement).value)"
         />
       </label>
+      <p v-if="hasTurbineDatum" class="hint">
+        Turbine is elevation 0. Pipe length is along the penstock (not the horizontal value).
+      </p>
       <button type="button" class="danger" @click="onDelete">Delete element</button>
     </template>
     <p v-else class="placeholder">
@@ -103,6 +132,13 @@ function onDelete() {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 0.35rem 0.5rem;
+}
+
+.hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--muted-fg);
 }
 
 .danger {

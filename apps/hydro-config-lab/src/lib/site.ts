@@ -1,12 +1,17 @@
 /**
  * Clean-slate site geometry for the hydro config lab.
- * x = ground distance along the run (sM), y = elevation (zM).
+ *
+ * - sM = horizontal distance (plan meters along the ground map)
+ * - zM = elevation (absolute meters)
+ *
+ * Pipe length is NOT s; it is the path length along intake → bends → turbine
+ * in the s–z plane (straight run ≈ triangle hypotenuse).
  */
 
 export type SitePoint = {
-  /** Distance along the ground from an arbitrary origin (m). */
+  /** Horizontal distance (m) — plan / map coordinate, not pipe length. */
   sM: number;
-  /** Elevation (m). */
+  /** Elevation (m), absolute. Display may show z relative to turbine. */
   zM: number;
 };
 
@@ -61,7 +66,7 @@ export function siteStatusMessage(site: Site): string {
   if (!site.intake) return "Place an intake (upstream diversion / headworks).";
   if (!site.turbine) return "Place a turbine / powerhouse to complete the run.";
   if (site.bends.length === 0) {
-    return "Straight penstock ready — optional: add bends, then adjust elevations.";
+    return "Straight penstock ready — optional: add bends, then refine elevations.";
   }
   return `Penstock with ${site.bends.length} bend${site.bends.length === 1 ? "" : "s"} — drag points to refine.`;
 }
@@ -104,13 +109,11 @@ export function deleteSelection(site: Site, sel: SiteSelection): { site: Site; s
 }
 
 /**
- * Insert a bend. If intake and turbine exist, order by sM along the run;
- * otherwise append.
+ * Insert a bend. Bends stay sorted by horizontal distance s.
  */
 export function addBend(site: Site, point: SitePoint): { site: Site; selection: SiteSelection } {
   const next = cloneSite(site);
   next.bends.push({ ...point });
-  // Keep bends sorted by ground distance for a sensible penstock path.
   next.bends.sort((a, b) => a.sM - b.sM);
   const index = next.bends.findIndex((b) => b.sM === point.sM && b.zM === point.zM);
   return {

@@ -14,10 +14,14 @@ import {
 import {
   clampPoint,
   DEFAULT_VIEW,
+  displayToWorld,
+  elevationOriginZ,
+  GRID_STEP_M,
   markerRadiusM,
-  tickStep,
+  snapPoint,
   ticks,
   toSvgViewBox,
+  worldToDisplay,
   type WorldBounds,
 } from "../lib/viewBox";
 
@@ -35,27 +39,48 @@ const emit = defineEmits<{
 
 const svgRef = ref<SVGSVGElement | null>(null);
 const dragging = ref<SiteSelection>(null);
+/** Freeze elev origin while dragging so moving the turbine does not runaway. */
+const dragElevOrigin = ref<number | null>(null);
+const snapToGrid = ref(true);
 
-/** Fixed world window so dragging moves the point on screen (not the camera). */
+/** Fixed display window (does not auto-zoom while dragging). */
 const view = ref<WorldBounds>({ ...DEFAULT_VIEW });
+
+/**
+ * Elevation 0 on the plot = turbine elevation when a turbine exists.
+ * Horizontal axis is plan distance s (not pipe length).
+ */
+const elevOriginLive = computed(() => elevationOriginZ(props.site.turbine?.zM));
+const elevOrigin = computed(() =>
+  dragElevOrigin.value != null ? dragElevOrigin.value : elevOriginLive.value,
+);
 
 const viewBox = computed(() => toSvgViewBox(view.value));
 const markR = computed(() => markerRadiusM(view.value));
+const fontM = computed(() => Math.max(3.2, (view.value.sMax - view.value.sMin) * 0.018));
 
-const sTicks = computed(() => {
-  const b = view.value;
-  return ticks(b.sMin, b.sMax, tickStep(b.sMax - b.sMin));
-});
-const zTicks = computed(() => {
-  const b = view.value;
-  return ticks(b.zMin, b.zMax, tickStep(b.zMax - b.zMin));
-});
+const sGrid = computed(() => ticks(view.value.sMin, view.value.sMax, GRID_STEP_M));
+const zGrid = computed(() => ticks(view.value.zMin, view.value.zMax, GRID_STEP_M));
 
-/** Head / run / pipe length for triangle teaching graphic. */
+function toDisplay(p: { sM: number; zM: number }) {
+  return worldToDisplay(p.sM, p.zM, elevOrigin.value);
+}
+
+function fromDisplay(s: number, z: number) {
+  let d = clampPoint(s, z, view.value);
+  if (snapToGrid.value) {
+    d = snapPoint(d.sM, d.zM, GRID_STEP_M);
+    d = clampPoint(d.sM, d.zM, view.value);
+  }
+  return displayToWorld(d.sM, d.zM, elevOrigin.value);
+}
+
 const triangle = computed(() => {
   if (!props.site.intake || !props.site.turbine) return null;
   const a = props.site.intake;
   const t = props.site.turbine;
+  const aD = toDisplay(a);
+  const tD = toDisplay(t);
   const runM = Math.abs(t.sM - a.sM);
   const headM = a.zM - t.zM;
   const pts = profilePoints(props.site);
@@ -65,20 +90,19 @@ const triangle = computed(() => {
     const p1 = pts[i]!;
     pipeM += Math.hypot(p1.sM - p0.sM, p1.zM - p0.zM);
   }
-  // Right angle corner of the elevation triangle (vertical under intake, horizontal to turbine s).
-  const corner = { sM: a.sM, zM: t.zM };
+  // Right angle at (intake.s, turbine elev) in display space
+  const corner = { s: aD.s, z: tD.z };
   return {
-    intake: a,
-    turbine: t,
+    intakeD: aD,
+    turbineD: tD,
     corner,
     runM,
     headM,
     pipeM,
-    steep: headM > 0 && runM > 1e-6 ? headM / runM : 0,
   };
 });
 
-function clientToWorld(ev: PointerEvent | MouseEvent): { sM: number; zM: number } | null {
+function clientToDisplay(ev: PointerEvent | MouseEvent): { s: number; z: number } | null {
   const svg = svgRef.value;
   if (!svg) return null;
   const pt = svg.createSVGPoint();
@@ -87,12 +111,17 @@ function clientToWorld(ev: PointerEvent | MouseEvent): { sM: number; zM: number 
   const ctm = svg.getScreenCTM();
   if (!ctm) return null;
   const local = pt.matrixTransform(ctm.inverse());
-  return clampPoint(local.x, -local.y, view.value);
+  return { s: local.x, z: -local.y };
+}
+
+function clientToWorld(ev: PointerEvent | MouseEvent): { sM: number; zM: number } | null {
+  const d = clientToDisplay(ev);
+  if (!d) return null;
+  return fromDisplay(d.s, d.z);
 }
 
 function onCanvasClick(ev: MouseEvent) {
   if (dragging.value) return;
-  // Ignore clicks that started on a node (pointerdown already handled).
   if ((ev.target as Element).closest?.(".node")) return;
   const world = clientToWorld(ev);
   if (!world) return;
@@ -133,6 +162,7 @@ function onPointerDown(sel: SiteSelection, ev: PointerEvent) {
   emit("update:selection", sel);
   emit("update:tool", "select");
   dragging.value = sel;
+  dragElevOrigin.value = elevOriginLive.value;
   svgRef.value?.setPointerCapture?.(ev.pointerId);
 }
 
@@ -145,6 +175,7 @@ function onPointerMove(ev: PointerEvent) {
   if (sel.kind === "intake" && site.intake) {
     emit("update:site", { ...site, intake: world });
   } else if (sel.kind === "turbine" && site.turbine) {
+    // Moving turbine changes elev origin; store new absolute z from display.
     emit("update:site", { ...site, turbine: world });
   } else if (sel.kind === "bend") {
     const bends = site.bends.map((b, i) => (i === sel.index ? world : b));
@@ -155,6 +186,7 @@ function onPointerMove(ev: PointerEvent) {
 function onPointerUp(ev: PointerEvent) {
   if (!dragging.value) return;
   dragging.value = null;
+  dragElevOrigin.value = null;
   try {
     svgRef.value?.releasePointerCapture?.(ev.pointerId);
   } catch {
@@ -169,7 +201,12 @@ function onPointerUp(ev: PointerEvent) {
 const polyline = computed(() => {
   const pts = profilePoints(props.site);
   if (pts.length < 2) return "";
-  return pts.map((p) => `${p.sM},${-p.zM}`).join(" ");
+  return pts
+    .map((p) => {
+      const d = toDisplay(p);
+      return `${d.s},${-d.z}`;
+    })
+    .join(" ");
 });
 
 const status = computed(() => {
@@ -178,9 +215,9 @@ const status = computed(() => {
   const t = triangle.value;
   const headNote =
     t.headM >= 0
-      ? `H=${t.headM.toFixed(1)} m drop`
+      ? `H=${t.headM.toFixed(1)} m head`
       : `H=${Math.abs(t.headM).toFixed(1)} m (uphill — no head)`;
-  return `${base} · run ${t.runM.toFixed(1)} m · ${headNote} · pipe L=${t.pipeM.toFixed(1)} m`;
+  return `${base} · horizontal run ${t.runM.toFixed(1)} m · ${headNote} · pipe L=${t.pipeM.toFixed(1)} m`;
 });
 
 const tools: { id: ToolId; label: string; hint: string }[] = [
@@ -206,11 +243,9 @@ function resetView() {
   view.value = { ...DEFAULT_VIEW };
 }
 
-/** Font size in world units for readable labels. */
-const fontM = computed(() => Math.max(3.2, viewWidthSafe() * 0.018));
-function viewWidthSafe() {
-  return view.value.sMax - view.value.sMin;
-}
+const elevAxisTitle = computed(() =>
+  props.site.turbine ? "elevation above turbine (m)" : "elevation (m)",
+);
 </script>
 
 <template>
@@ -228,7 +263,11 @@ function viewWidthSafe() {
       >
         {{ t.label }}
       </button>
-      <button type="button" class="tool ghost" title="Reset view to default window" @click="resetView">
+      <label class="snap" title="Snap placement and drag to 10 m grid">
+        <input v-model="snapToGrid" type="checkbox" />
+        Snap to {{ GRID_STEP_M }} m
+      </label>
+      <button type="button" class="tool ghost" title="Reset view window" @click="resetView">
         Reset view
       </button>
     </header>
@@ -244,7 +283,6 @@ function viewWidthSafe() {
         @pointerup="onPointerUp"
         @pointercancel="onPointerUp"
       >
-        <!-- Plot background -->
         <rect
           :x="view.sMin"
           :y="-view.zMax"
@@ -253,119 +291,86 @@ function viewWidthSafe() {
           class="plot-bg"
         />
 
-        <!-- Vertical grid + s labels -->
+        <!-- 10×10 m square grid (no tick numbers) -->
         <g class="grid-lines">
           <line
-            v-for="s in sTicks"
+            v-for="s in sGrid"
             :key="'vs' + s"
             :x1="s"
             :x2="s"
             :y1="-view.zMin"
             :y2="-view.zMax"
             class="grid"
+            :class="{ major: s === 0 }"
           />
           <line
-            v-for="z in zTicks"
+            v-for="z in zGrid"
             :key="'hz' + z"
             :x1="view.sMin"
             :x2="view.sMax"
             :y1="-z"
             :y2="-z"
             class="grid"
+            :class="{ major: z === 0 }"
           />
         </g>
 
-        <!-- Axes through origin if visible, else along plot edge -->
+        <!-- Emphasize elevation 0 (turbine datum when placed) -->
         <line
-          class="axis-line"
+          class="datum"
           :x1="view.sMin"
           :x2="view.sMax"
-          :y1="0"
-          :y2="0"
-        />
-        <line
-          class="axis-line"
-          :x1="0"
-          :x2="0"
-          :y1="-view.zMin"
-          :y2="-view.zMax"
+          y1="0"
+          y2="0"
         />
 
-        <!-- Tick labels (s along bottom of view, z along left) -->
-        <g class="tick-labels">
-          <text
-            v-for="s in sTicks"
-            :key="'sl' + s"
-            :x="s"
-            :y="-view.zMin + fontM * 1.15"
-            text-anchor="middle"
-            :font-size="fontM * 0.85"
-            class="tick"
-          >
-            {{ s }}
-          </text>
-          <text
-            v-for="z in zTicks"
-            :key="'zl' + z"
-            :x="view.sMin + fontM * 0.35"
-            :y="-z + fontM * 0.3"
-            text-anchor="start"
-            :font-size="fontM * 0.85"
-            class="tick"
-          >
-            {{ z }}
-          </text>
-        </g>
-
+        <!-- Axis titles only (no numeric tick labels) -->
         <text
           :x="(view.sMin + view.sMax) / 2"
-          :y="-view.zMin + fontM * 2.4"
+          :y="-view.zMin + fontM * 1.8"
           text-anchor="middle"
-          :font-size="fontM * 0.9"
+          :font-size="fontM * 0.95"
           class="axis-title"
         >
-          ground distance s (m)
+          horizontal distance (m)
         </text>
         <text
-          :x="view.sMin + fontM * 1.6"
+          :x="view.sMin + fontM * 1.5"
           :y="-(view.zMin + view.zMax) / 2"
           text-anchor="middle"
-          :font-size="fontM * 0.9"
+          :font-size="fontM * 0.95"
           class="axis-title"
-          :transform="`rotate(-90, ${view.sMin + fontM * 1.6}, ${-((view.zMin + view.zMax) / 2)})`"
+          :transform="`rotate(-90, ${view.sMin + fontM * 1.5}, ${-((view.zMin + view.zMax) / 2)})`"
         >
-          elevation z (m)
+          {{ elevAxisTitle }}
         </text>
 
-        <!-- Right triangle guide: vertical head + horizontal run + hypotenuse = penstock intent -->
+        <!-- Teaching triangle: H (vertical), horizontal run, dashed straight-pipe L -->
         <g v-if="triangle" class="triangle-guide">
-          <!-- vertical drop under intake -->
           <line
-            :x1="triangle.intake.sM"
-            :y1="-triangle.intake.zM"
-            :x2="triangle.corner.sM"
-            :y2="-triangle.corner.zM"
+            :x1="triangle.intakeD.s"
+            :y1="-triangle.intakeD.z"
+            :x2="triangle.corner.s"
+            :y2="-triangle.corner.z"
             class="tri-leg"
           />
-          <!-- horizontal run at turbine elevation -->
           <line
-            :x1="triangle.corner.sM"
-            :y1="-triangle.corner.zM"
-            :x2="triangle.turbine.sM"
-            :y2="-triangle.turbine.zM"
+            :x1="triangle.corner.s"
+            :y1="-triangle.corner.z"
+            :x2="triangle.turbineD.s"
+            :y2="-triangle.turbineD.z"
             class="tri-leg"
           />
-          <!-- dashed ideal hypotenuse intake → turbine (straight pipe) -->
           <line
-            :x1="triangle.intake.sM"
-            :y1="-triangle.intake.zM"
-            :x2="triangle.turbine.sM"
-            :y2="-triangle.turbine.zM"
+            :x1="triangle.intakeD.s"
+            :y1="-triangle.intakeD.z"
+            :x2="triangle.turbineD.s"
+            :y2="-triangle.turbineD.z"
             class="tri-hyp"
           />
           <text
-            :x="triangle.intake.sM - fontM * 0.4"
-            :y="-(triangle.intake.zM + triangle.turbine.zM) / 2"
+            :x="triangle.intakeD.s - fontM * 0.4"
+            :y="-(triangle.intakeD.z + triangle.turbineD.z) / 2"
             text-anchor="end"
             :font-size="fontM * 0.9"
             class="tri-label"
@@ -373,8 +378,8 @@ function viewWidthSafe() {
             H {{ triangle.headM.toFixed(1) }} m
           </text>
           <text
-            :x="(triangle.intake.sM + triangle.turbine.sM) / 2"
-            :y="-triangle.turbine.zM + fontM * 1.2"
+            :x="(triangle.intakeD.s + triangle.turbineD.s) / 2"
+            :y="-triangle.turbineD.z + fontM * 1.2"
             text-anchor="middle"
             :font-size="fontM * 0.9"
             class="tri-label"
@@ -382,23 +387,17 @@ function viewWidthSafe() {
             run {{ triangle.runM.toFixed(1) }} m
           </text>
           <text
-            :x="(triangle.intake.sM + triangle.turbine.sM) / 2 + fontM"
-            :y="-(triangle.intake.zM + triangle.turbine.zM) / 2 - fontM * 0.5"
+            :x="(triangle.intakeD.s + triangle.turbineD.s) / 2 + fontM"
+            :y="-(triangle.intakeD.z + triangle.turbineD.z) / 2 - fontM * 0.5"
             text-anchor="start"
             :font-size="fontM * 0.9"
             class="tri-label hyp"
           >
-            L {{ triangle.pipeM.toFixed(1) }} m
+            pipe L {{ triangle.pipeM.toFixed(1) }} m
           </text>
         </g>
 
-        <!-- Actual penstock path (may include bends) -->
-        <polyline
-          v-if="polyline"
-          :points="polyline"
-          class="penstock"
-          fill="none"
-        />
+        <polyline v-if="polyline" :points="polyline" class="penstock" fill="none" />
 
         <!-- Intake -->
         <g
@@ -408,11 +407,21 @@ function viewWidthSafe() {
           @click="selectElement({ kind: 'intake' }, $event)"
           @pointerdown="onPointerDown({ kind: 'intake' }, $event)"
         >
-          <circle :cx="site.intake.sM" :cy="-site.intake.zM" :r="markR * 1.6" class="hit" />
-          <circle :cx="site.intake.sM" :cy="-site.intake.zM" :r="markR" class="mark" />
+          <circle
+            :cx="toDisplay(site.intake).s"
+            :cy="-toDisplay(site.intake).z"
+            :r="markR * 1.6"
+            class="hit"
+          />
+          <circle
+            :cx="toDisplay(site.intake).s"
+            :cy="-toDisplay(site.intake).z"
+            :r="markR"
+            class="mark"
+          />
           <text
-            :x="site.intake.sM"
-            :y="-site.intake.zM - markR * 1.8"
+            :x="toDisplay(site.intake).s"
+            :y="-toDisplay(site.intake).z - markR * 1.8"
             text-anchor="middle"
             :font-size="fontM"
             class="label"
@@ -430,11 +439,21 @@ function viewWidthSafe() {
           @click="selectElement({ kind: 'bend', index: i }, $event)"
           @pointerdown="onPointerDown({ kind: 'bend', index: i }, $event)"
         >
-          <circle :cx="b.sM" :cy="-b.zM" :r="markR * 1.5" class="hit" />
-          <circle :cx="b.sM" :cy="-b.zM" :r="markR * 0.85" class="mark" />
+          <circle
+            :cx="toDisplay(b).s"
+            :cy="-toDisplay(b).z"
+            :r="markR * 1.5"
+            class="hit"
+          />
+          <circle
+            :cx="toDisplay(b).s"
+            :cy="-toDisplay(b).z"
+            :r="markR * 0.85"
+            class="mark"
+          />
           <text
-            :x="b.sM"
-            :y="-b.zM - markR * 1.7"
+            :x="toDisplay(b).s"
+            :y="-toDisplay(b).z - markR * 1.7"
             text-anchor="middle"
             :font-size="fontM * 0.9"
             class="label"
@@ -443,7 +462,7 @@ function viewWidthSafe() {
           </text>
         </g>
 
-        <!-- Turbine -->
+        <!-- Turbine (sits on elevation datum when present) -->
         <g
           v-if="site.turbine"
           class="node turbine"
@@ -451,17 +470,22 @@ function viewWidthSafe() {
           @click="selectElement({ kind: 'turbine' }, $event)"
           @pointerdown="onPointerDown({ kind: 'turbine' }, $event)"
         >
-          <circle :cx="site.turbine.sM" :cy="-site.turbine.zM" :r="markR * 1.6" class="hit" />
+          <circle
+            :cx="toDisplay(site.turbine).s"
+            :cy="-toDisplay(site.turbine).z"
+            :r="markR * 1.6"
+            class="hit"
+          />
           <rect
-            :x="site.turbine.sM - markR"
-            :y="-site.turbine.zM - markR"
+            :x="toDisplay(site.turbine).s - markR"
+            :y="-toDisplay(site.turbine).z - markR"
             :width="markR * 2"
             :height="markR * 2"
             class="mark-sq"
           />
           <text
-            :x="site.turbine.sM"
-            :y="-site.turbine.zM - markR * 1.8"
+            :x="toDisplay(site.turbine).s"
+            :y="-toDisplay(site.turbine).z - markR * 1.8"
             text-anchor="middle"
             :font-size="fontM"
             class="label"
@@ -474,11 +498,12 @@ function viewWidthSafe() {
       <div v-if="!site.intake && !site.turbine && site.bends.length === 0" class="empty-overlay">
         <p class="title">Clean slate</p>
         <p>
-          Place an <strong>intake</strong> high on the slope, then a
-          <strong>turbine</strong> lower and farther along ground distance.
+          Place an <strong>intake</strong> upslope, then a <strong>turbine</strong> lower.
+          Elevation 0 is the turbine once placed — head is the vertical drop.
         </p>
         <p class="muted">
-          Grid is meters (s, z). Bigger elevation drop for a given run → steeper penstock.
+          Axes: horizontal distance × elevation. Pipe length L follows the penstock (slope /
+          bends), not the horizontal axis.
         </p>
       </div>
     </div>
@@ -486,8 +511,15 @@ function viewWidthSafe() {
     <p class="status">
       {{ status }}
       <span v-if="isSiteComplete(site) && triangle" class="geom">
-        · slope {{ (Math.atan2(Math.max(0, triangle.headM), Math.max(1e-6, triangle.runM)) * 180 / Math.PI).toFixed(1) }}°
+        · slope
+        {{
+          (
+            (Math.atan2(Math.max(0, triangle.headM), Math.max(1e-6, triangle.runM)) * 180) /
+            Math.PI
+          ).toFixed(1)
+        }}°
       </span>
+      <span class="geom"> · grid {{ GRID_STEP_M }} m</span>
     </p>
   </section>
 </template>
@@ -507,6 +539,7 @@ function viewWidthSafe() {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
+  align-items: center;
   padding: 0.55rem 0.7rem;
   border-bottom: 1px solid var(--border);
   background: var(--toolbar);
@@ -543,6 +576,16 @@ function viewWidthSafe() {
   cursor: not-allowed;
 }
 
+.snap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--fg);
+  margin-left: 0.35rem;
+  user-select: none;
+}
+
 .plot-wrap {
   position: relative;
   flex: 1;
@@ -567,19 +610,19 @@ function viewWidthSafe() {
 
 .grid {
   stroke: var(--fg);
-  stroke-opacity: 0.1;
+  stroke-opacity: 0.12;
   stroke-width: 0.35;
 }
 
-.axis-line {
-  stroke: var(--fg);
-  stroke-opacity: 0.35;
-  stroke-width: 0.5;
+.grid.major {
+  stroke-opacity: 0.28;
+  stroke-width: 0.55;
 }
 
-.tick {
-  fill: var(--muted-fg);
-  pointer-events: none;
+.datum {
+  stroke: var(--fg);
+  stroke-opacity: 0.45;
+  stroke-width: 0.7;
 }
 
 .axis-title {
@@ -683,7 +726,7 @@ function viewWidthSafe() {
   border: 1px dashed var(--border-strong);
   border-radius: 12px;
   background: color-mix(in srgb, var(--panel) 90%, transparent);
-  max-width: 28rem;
+  max-width: 30rem;
   margin: auto;
   pointer-events: none;
 }
@@ -696,7 +739,7 @@ function viewWidthSafe() {
 
 .empty-overlay p {
   margin: 0;
-  max-width: 24rem;
+  max-width: 26rem;
   line-height: 1.45;
   font-size: 0.9rem;
   color: var(--fg);
