@@ -1,8 +1,17 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import ServerStatus from "./components/ServerStatus.vue";
 import SiteCanvas from "./components/SiteCanvas.vue";
 import SelectionPanel from "./components/SelectionPanel.vue";
+import PlantForm from "./components/PlantForm.vue";
+import SteadyPreview from "./components/SteadyPreview.vue";
+import { compileSite } from "./lib/compileSite";
+import {
+  defaultOperator,
+  defaultPlantParams,
+  type OperatorInputs,
+  type PlantParams,
+} from "./lib/plantParams";
 import {
   emptySite,
   isSiteComplete,
@@ -14,6 +23,12 @@ import {
 const site = ref<Site>(emptySite());
 const selection = ref<SiteSelection>(null);
 const tool = ref<ToolId>("intake");
+const params = ref<PlantParams>(defaultPlantParams());
+const operator = ref<OperatorInputs>(defaultOperator());
+
+const compiled = computed(() => compileSite(site.value, params.value));
+const plant = computed(() => (compiled.value.ok ? compiled.value.plant : null));
+const derived = computed(() => (compiled.value.ok ? compiled.value.derived : null));
 
 function newSite() {
   if (
@@ -25,6 +40,8 @@ function newSite() {
   site.value = emptySite();
   selection.value = null;
   tool.value = "intake";
+  params.value = defaultPlantParams();
+  operator.value = defaultOperator();
 }
 </script>
 
@@ -57,14 +74,22 @@ function newSite() {
 
       <aside class="side" aria-label="Properties">
         <SelectionPanel v-model:site="site" v-model:selection="selection" />
-
+        <PlantForm
+          :params="params"
+          :operator="operator"
+          :derived="derived"
+          :complete="isSiteComplete(site)"
+          @update:params="params = $event"
+          @update:operator="operator = $event"
+        />
         <div class="preview-card">
-          <h3>Geometry</h3>
-          <p v-if="isSiteComplete(site)" class="ok">
-            Site complete (intake + turbine). Compile &amp; preview arrive in Lab-PR3.
-          </p>
-          <p v-else class="placeholder">
-            Place intake and turbine to complete the penstock run.
+          <SteadyPreview
+            :plant="plant"
+            :operator="operator"
+            :enabled="isSiteComplete(site)"
+          />
+          <p v-if="compiled.ok === false && isSiteComplete(site)" class="compile-err">
+            {{ compiled.error }}
           </p>
         </div>
       </aside>
@@ -83,7 +108,7 @@ function newSite() {
     </section>
 
     <footer class="foot">
-      <span>Lab-PR2 site canvas</span>
+      <span>Lab-PR3 compile + preview</span>
       <span class="sep">·</span>
       <span>energy-sims</span>
     </footer>
@@ -161,7 +186,7 @@ function newSite() {
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 20rem);
   gap: 1rem;
   align-items: stretch;
 }
@@ -179,7 +204,9 @@ function newSite() {
   padding: 0.9rem 1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1rem;
+  max-height: min(80vh, 52rem);
+  overflow: auto;
 }
 
 .trial h2 {
@@ -202,26 +229,15 @@ function newSite() {
   border-radius: 3px;
 }
 
-.ok {
-  margin: 0;
-  font-size: 0.85rem;
-  line-height: 1.45;
-  color: var(--fg);
-}
-
 .preview-card {
-  margin-top: auto;
   padding-top: 0.75rem;
   border-top: 1px solid var(--border);
 }
 
-.preview-card h3 {
-  margin: 0 0 0.4rem;
-  font-size: 0.82rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted-fg);
+.compile-err {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  color: #c44;
 }
 
 .trial {

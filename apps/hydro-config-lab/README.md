@@ -7,8 +7,8 @@ Plan: [`docs/plans/hydro-config-lab.md`](../../docs/plans/hydro-config-lab.md)
 
 ## Status
 
-**Lab-PR2** — Clean-slate site canvas: place intake, penstock bends, turbine; select/drag/delete.  
-Next: Lab-PR3 compile → plant + engine preview.
+**Lab-PR3** — Compile site → plant JSON, property form, steady engine preview.  
+Next: Lab-PR4 named save / export / import.
 
 ## Prerequisites
 
@@ -51,6 +51,7 @@ VITE_ENERGY_SIM_URL=http://127.0.0.1:8787 npm run dev
 | `npm run dev` | Vite dev server |
 | `npm run build` | Typecheck + production build |
 | `npm run preview` | Preview production build |
+| `npm test` | Compile math unit tests (vitest) |
 
 ## Layout
 

@@ -1,6 +1,6 @@
 # Plan: Hydro Config Lab
 
-**Status:** Lab-PR2 done; next Lab-PR3 (compile + preview)  
+**Status:** Lab-PR3 done; next Lab-PR4 (save/export/import)  
 **Date:** 2026-07-30  
 **Design:** [../hydro-config-lab.md](../hydro-config-lab.md)  
 **Depends on:** Stage 1 engine (shipped) — server + plant/session JSON  
@@ -58,18 +58,18 @@ Stack for MVP:
   - Contextual empty states and status line
 - **Done when:** user can build a simple two- or three-point run on a blank grid — **met**
 
-### Lab-PR3 — Compile site → plant + property panel + steady preview
+### Lab-PR3 — Compile site → plant + property panel + steady preview ✅ done
 
 - **Title:** `feat(lab): compile site to plant JSON and engine preview`
-- **Affects:** `compileSite.ts` (or similar), property panel, preview via server
+- **Affects:** `compileSite.ts`, `plantParams.ts`, `PlantForm.vue`, `SteadyPreview.vue`, vitest
 - **Depends on:** Lab-PR2
 - **Description:**
   - Derive `grossHeadM`, `lengthM`, bend contribution to `minorLossCoefficient`
-  - Plant-wide properties: stream flow, diameter, η, dynamics, operator inputs (with defaults once geometry exists)
+  - Plant-wide properties: stream, diameter, η, dynamics, operator inputs
   - Advanced overrides for friction/K/length/head
-  - Steady preview against production engine when the site compiles
-  - Meaningful unit tests for compile math only
-- **Done when:** placing a higher intake increases preview power; extra bend increases loss for same diameter/flow
+  - Steady preview via `createSession` + `set_hydro_input` (target kW / head)
+  - Unit tests for compile math (`npm test` — 10 cases)
+- **Done when:** higher intake → higher target power; extra bend → higher K — **met**
 
 ### Lab-PR4 — Named configs save/load/export + optional import
 
