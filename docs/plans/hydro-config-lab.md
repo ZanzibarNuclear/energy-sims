@@ -1,6 +1,6 @@
 # Plan: Hydro Config Lab
 
-**Status:** Lab-PR4 done; next Lab-PR5 (trials)  
+**Status:** Lab-PR1–PR5 complete — pause for review (before station loads)  
 **Date:** 2026-07-30  
 **Design:** [../hydro-config-lab.md](../hydro-config-lab.md)  
 **Depends on:** Stage 1 engine (shipped) — server + plant/session JSON  
@@ -83,18 +83,22 @@ Stack for MVP:
   - Default home remains clean slate
 - **Done when:** save/reload named site; export plant for CLI — **met**
 
-### Lab-PR5 — Trial runner + charts
+### Lab-PR5 — Trial runner + charts ✅ done
 
 - **Title:** `feat(lab): session trials with ramps and series charts`
-- **Affects:** trial runner, charts, WS live optional
+- **Affects:** `TrialRunner.vue`, `SeriesChart.vue`, `trialTypes.ts`
 - **Depends on:** Lab-PR3
 - **Description:**
-  - Start session from compiled plant; advance fixed duration
-  - Chart electrical power, turbine speed vs `simTimeS`
-  - Snapshot strip: generation, head breakdown, warnings
-  - Commands mid-trial: set gate, stop (spin-down)
-  - Prefer REST advance for interval demos; add WS live tick for continuous play
-- **Done when:** open-gate trial shows S-curve spin-up; drought / extra-bend scenarios visibly differ
+  - Create session from compiled plant; spin-up demo (gate 0→open) or steady interval
+  - Chart electrical power + turbine speed from `/history` samples
+  - Snapshot strip: actual/target power, speed, head, energy, phase
+  - Mid-trial: set gate + 30 s; stop + spin-down advance
+  - REST only (WS live deferred)
+- **Done when:** spin-up shows S-curve; stop shows spin-down — **met** (API smoke + build)
+
+### Pause after PR5
+
+**Review checkpoint.** Do not start Lab-PR6 (station loads) until product review of PR1–PR5.
 
 ### Lab-PR6 — Station loads panel (optional, later)
 

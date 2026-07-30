@@ -6,6 +6,7 @@ import SiteCanvas from "./components/SiteCanvas.vue";
 import SelectionPanel from "./components/SelectionPanel.vue";
 import PlantForm from "./components/PlantForm.vue";
 import SteadyPreview from "./components/SteadyPreview.vue";
+import TrialRunner from "./components/TrialRunner.vue";
 import { compileSite } from "./lib/compileSite";
 import { emptyLabState } from "./lib/labDocument";
 import type { OperatorInputs, PlantParams } from "./lib/plantParams";
@@ -111,22 +112,16 @@ function onLoad(state: {
       </aside>
     </div>
 
-    <section class="trial" aria-label="Trial runner">
-      <div class="trial-bar">
-        <h2>Trial</h2>
-        <button type="button" class="btn primary" disabled title="Lab-PR5">Run</button>
-        <button type="button" class="btn" disabled title="Lab-PR5">Stop</button>
-      </div>
-      <p class="placeholder">
-        Session trials (ramps, series charts) ship in Lab-PR5 — always against
-        <code>energy-sim-server</code>, not browser-only math.
-      </p>
-    </section>
+    <TrialRunner
+      :plant="plant"
+      :operator="operator"
+      :enabled="isSiteComplete(site)"
+    />
 
     <footer class="foot">
-      <span>Lab-PR4 save / export / import</span>
+      <span>Lab-PR5 trial runner</span>
       <span class="sep">·</span>
-      <span>energy-sims</span>
+      <span>PR1–PR5 complete — pause before station loads</span>
     </footer>
   </div>
 </template>
@@ -162,28 +157,6 @@ function onLoad(state: {
   font-size: 0.9rem;
 }
 
-.btn {
-  font: inherit;
-  font-size: 0.85rem;
-  padding: 0.4rem 0.75rem;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--panel);
-  color: var(--fg);
-  cursor: pointer;
-}
-
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.btn.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(16rem, 20rem);
@@ -209,26 +182,6 @@ function onLoad(state: {
   overflow: auto;
 }
 
-.trial h2 {
-  margin: 0;
-  font-size: 0.95rem;
-  font-weight: 650;
-}
-
-.placeholder {
-  margin: 0;
-  font-size: 0.85rem;
-  line-height: 1.45;
-  color: var(--muted-fg);
-}
-
-.placeholder code {
-  font-size: 0.8em;
-  background: var(--code-bg);
-  padding: 0.05rem 0.3rem;
-  border-radius: 3px;
-}
-
 .preview-card {
   padding-top: 0.75rem;
   border-top: 1px solid var(--border);
@@ -238,25 +191,6 @@ function onLoad(state: {
   margin: 0.4rem 0 0;
   font-size: 0.8rem;
   color: #c44;
-}
-
-.trial {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--panel);
-  padding: 0.85rem 1rem 1rem;
-}
-
-.trial-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.trial-bar h2 {
-  margin-right: auto;
 }
 
 .foot {
