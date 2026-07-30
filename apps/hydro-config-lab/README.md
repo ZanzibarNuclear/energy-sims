@@ -8,7 +8,7 @@ Plan: [`docs/plans/hydro-config-lab.md`](../../docs/plans/hydro-config-lab.md)
 ## Status
 
 **Workflow UI** — three tabs: **Layout** → **Equipment** → **Run**.  
-**Save** downloads full config JSON; **Open** loads it. The browser auto-saves a draft for refresh.
+**Save** keeps named configs in this browser; **Export / Import** for JSON files.
 
 ## Prerequisites
 
@@ -75,4 +75,4 @@ src/
 2. **Equipment** — stream flow, diameter, friction, η, operator; steady preview  
 3. **Run** — engine status, ▶ Play / ⏹ Stop, power & speed charts  
 
-File menu (☰): New site, Save (JSON file), Open (JSON file).
+File menu (☰): New, Save / Save as (browser), Open saved list, Export JSON, Import JSON.

@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "vue";
+import { onMounted, onUnmounted, ref, watch } from "vue";
+import {
+  deleteConfig,
+  listConfigs,
+  loadConfig,
+  saveConfig,
+  type ConfigIndexEntry,
+} from "../lib/configStore";
 import {
   createLabDocument,
   downloadLabFile,
@@ -29,9 +36,20 @@ const emit = defineEmits<{
 }>();
 
 const open = ref(false);
+const saved = ref<ConfigIndexEntry[]>([]);
 const fileInput = ref<HTMLInputElement | null>(null);
 const message = ref("");
 const root = ref<HTMLElement | null>(null);
+
+function refreshList() {
+  saved.value = listConfigs();
+}
+
+watch(
+  () => props.name,
+  () => refreshList(),
+  { immediate: true },
+);
 
 function close() {
   open.value = false;
@@ -39,7 +57,10 @@ function close() {
 
 function toggle() {
   open.value = !open.value;
-  if (open.value) message.value = "";
+  if (open.value) {
+    message.value = "";
+    refreshList();
+  }
 }
 
 function onDocClick(ev: MouseEvent) {
@@ -60,16 +81,57 @@ onUnmounted(() => {
   document.removeEventListener("keydown", onKey);
 });
 
-/** Save = download a full configuration JSON you can open in an editor. */
+/** Persist under the current name in this browser. */
 function onSave() {
   const name = props.name.trim() || "Untitled site";
+  saveConfig(name, props.site, props.params, props.operator);
   emit("update:name", name);
-  const doc = createLabDocument(name, props.site, props.params, props.operator);
-  const filename = downloadLabFile(doc);
-  message.value = `Saved ${filename}`;
+  refreshList();
+  message.value = `Saved “${name}” in this browser`;
 }
 
-function onOpenClick() {
+function onSaveAs() {
+  const name = window.prompt("Save configuration as:", props.name);
+  if (!name?.trim()) return;
+  const key = name.trim();
+  saveConfig(key, props.site, props.params, props.operator);
+  emit("update:name", key);
+  refreshList();
+  message.value = `Saved “${key}” in this browser`;
+}
+
+function onOpenSaved(name: string) {
+  const doc = loadConfig(name);
+  if (!doc) {
+    message.value = `Could not open “${name}”`;
+    return;
+  }
+  emit("load", {
+    name: doc.name,
+    site: doc.site,
+    params: doc.params,
+    operator: doc.operator,
+  });
+  message.value = `Opened “${doc.name}”`;
+  close();
+}
+
+function onDelete(name: string) {
+  if (!confirm(`Delete saved config “${name}” from this browser?`)) return;
+  deleteConfig(name);
+  refreshList();
+  message.value = `Deleted “${name}”`;
+}
+
+/** Download a JSON file you can inspect or share. */
+function onExport() {
+  const name = props.name.trim() || "Untitled site";
+  const doc = createLabDocument(name, props.site, props.params, props.operator);
+  const filename = downloadLabFile(doc);
+  message.value = `Exported ${filename}`;
+}
+
+function onImportClick() {
   fileInput.value?.click();
 }
 
@@ -81,7 +143,10 @@ async function onFile(ev: Event) {
   try {
     const state = parseLabFile(await file.text());
     emit("load", state);
-    message.value = `Opened “${state.name}”`;
+    // Also keep a browser copy under that name so it shows in Open saved.
+    saveConfig(state.name, state.site, state.params, state.operator);
+    refreshList();
+    message.value = `Imported “${state.name}”`;
     close();
   } catch (e) {
     message.value = e instanceof Error ? e.message : String(e);
@@ -122,8 +187,11 @@ function onNew() {
         </label>
       </div>
       <button type="button" role="menuitem" @click="onNew">New site…</button>
-      <button type="button" role="menuitem" @click="onSave">Save…</button>
-      <button type="button" role="menuitem" @click="onOpenClick">Open…</button>
+      <button type="button" role="menuitem" @click="onSave">Save</button>
+      <button type="button" role="menuitem" @click="onSaveAs">Save as…</button>
+      <hr />
+      <button type="button" role="menuitem" @click="onExport">Export JSON…</button>
+      <button type="button" role="menuitem" @click="onImportClick">Import JSON…</button>
       <input
         ref="fileInput"
         type="file"
@@ -131,9 +199,26 @@ function onNew() {
         class="hidden"
         @change="onFile"
       />
-      <p class="hint">
-        Save downloads a JSON file (layout + equipment). Open loads it back. The browser also
-        auto-saves a draft for refresh.
+      <template v-if="saved.length">
+        <hr />
+        <p class="section">Open saved (this browser)</p>
+        <div v-for="c in saved" :key="c.name" class="saved-row">
+          <button type="button" class="load" @click="onOpenSaved(c.name)">
+            {{ c.name }}
+          </button>
+          <button
+            type="button"
+            class="del"
+            :title="`Delete ${c.name}`"
+            @click="onDelete(c.name)"
+          >
+            ×
+          </button>
+        </div>
+      </template>
+      <p v-else class="hint">
+        No saved configs yet. Use Save to keep a named layout in this browser. Export for a
+        downloadable file.
       </p>
       <p v-if="message" class="msg">{{ message }}</p>
     </div>
@@ -200,7 +285,8 @@ function onNew() {
   margin-bottom: 0.25rem;
 }
 
-.dropdown button[role="menuitem"] {
+.dropdown button[role="menuitem"],
+.dropdown .load {
   font: inherit;
   font-size: 0.88rem;
   text-align: left;
@@ -212,8 +298,50 @@ function onNew() {
   cursor: pointer;
 }
 
-.dropdown button[role="menuitem"]:hover {
+.dropdown button[role="menuitem"]:hover,
+.dropdown .load:hover {
   background: var(--bg);
+}
+
+.dropdown hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0.3rem 0;
+}
+
+.section {
+  margin: 0.15rem 0.4rem 0.1rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-fg);
+}
+
+.saved-row {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.saved-row .load {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.del {
+  font: inherit;
+  border: none;
+  background: transparent;
+  color: #c44;
+  cursor: pointer;
+  padding: 0.3rem 0.45rem;
+  border-radius: 4px;
+}
+
+.del:hover {
+  background: color-mix(in srgb, #c44 12%, transparent);
 }
 
 .hint {
@@ -224,7 +352,7 @@ function onNew() {
 }
 
 .msg {
-  margin: 0.25rem 0.4rem 0.15rem;
+  margin: 0.35rem 0.4rem 0.15rem;
   font-size: 0.75rem;
   color: var(--fg);
 }
