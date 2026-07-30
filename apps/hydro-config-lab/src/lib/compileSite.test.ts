@@ -94,14 +94,14 @@ describe("compileSite", () => {
     expect(r.plant.penstock.minorLossCoefficient).toBeCloseTo(0.5, 8);
   });
 
-  it("honors head override", () => {
+  it("ignores head override — layout geometry wins", () => {
     const p = defaultPlantParams();
     p.penstock.overrideHead = true;
     p.penstock.overrideGrossHeadM = 40;
     const r = compileSite(site, p);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.plant.penstock.grossHeadM).toBe(40);
-    expect(r.usedOverrides.head).toBe(true);
+    expect(r.plant.penstock.grossHeadM).toBeCloseTo(25, 10);
+    expect(r.usedOverrides.head).toBe(false);
   });
 });

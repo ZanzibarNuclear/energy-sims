@@ -108,15 +108,10 @@ export function compileSite(site: Site, params: PlantParams): CompileResult {
     return { ok: false, error: "Could not derive geometry from site." };
   }
 
-  const useHead = params.penstock.overrideHead;
-  const useLen = params.penstock.overrideLength;
-  const useK = params.penstock.overrideMinorLoss;
-
-  const head = useHead ? params.penstock.overrideGrossHeadM : derived.grossHeadM;
-  const length = useLen ? params.penstock.overrideLengthM : derived.lengthM;
-  const minorK = useK
-    ? params.penstock.overrideMinorLossCoefficient
-    : derived.minorLossCoefficient;
+  // Geometry is owned by the Layout tab — never honor field overrides here.
+  const head = derived.grossHeadM;
+  const length = derived.lengthM;
+  const minorK = derived.minorLossCoefficient;
 
   if (!(length > 0)) {
     return { ok: false, error: "Penstock length must be positive (separate intake and turbine)." };
@@ -161,7 +156,7 @@ export function compileSite(site: Site, params: PlantParams): CompileResult {
     ok: true,
     plant,
     derived,
-    usedOverrides: { head: useHead, length: useLen, minorK: useK },
+    usedOverrides: { head: false, length: false, minorK: false },
   };
 }
 

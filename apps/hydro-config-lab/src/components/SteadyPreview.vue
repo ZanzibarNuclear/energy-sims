@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import type { DerivedGeometry } from "../lib/compileSite";
 import {
   createEnergySimClient,
   defaultEngineUrl,
@@ -11,6 +12,7 @@ const props = defineProps<{
   plant: HydroPlantJson | null;
   operator: OperatorInputs;
   enabled: boolean;
+  derived: DerivedGeometry | null;
 }>();
 
 const loading = ref(false);
@@ -31,8 +33,6 @@ async function refresh() {
   try {
     const client = createEnergySimClient({ baseUrl: defaultEngineUrl() });
     const { sessionId, snapshot } = await client.createSession(props.plant);
-    // Apply operator inputs so gate/debris/leakage affect targets.
-    // Command fields are snake_case (runtime Command enum).
     const after = await client.applyCommands(sessionId, [
       {
         type: "set_hydro_input",
@@ -66,53 +66,86 @@ watch(
 </script>
 
 <template>
-  <div class="preview">
-    <h3>Steady preview</h3>
-    <p v-if="!enabled" class="placeholder">Complete the site (intake + turbine) to evaluate.</p>
-    <p v-else-if="loading && !snap" class="placeholder">Evaluating…</p>
-    <p v-else-if="error" class="err">{{ error }}</p>
-    <template v-else-if="snap">
+  <div class="side">
+    <section v-if="derived" class="card">
+      <h3>From layout</h3>
       <dl>
         <div>
-          <dt>Target P<sub>e</sub></dt>
-          <dd>{{ Number(targetKw).toFixed(3) }} kW</dd>
+          <dt>Head H</dt>
+          <dd>{{ derived.grossHeadM.toFixed(1) }} m</dd>
         </div>
         <div>
-          <dt>Hydraulic P</dt>
-          <dd>{{ Number(snap.hydraulicPowerKw).toFixed(3) }} kW</dd>
+          <dt>Pipe L</dt>
+          <dd>{{ derived.lengthM.toFixed(1) }} m</dd>
         </div>
         <div>
-          <dt>H<sub>gross</sub> / H<sub>net</sub></dt>
+          <dt>Minor K</dt>
           <dd>
-            {{ Number(snap.grossHeadM).toFixed(2) }} /
-            {{ Number(snap.netHeadM).toFixed(2) }} m
+            {{ derived.minorLossCoefficient.toFixed(2) }}
+            <span class="dim">
+              ({{ derived.baseMinorK.toFixed(2) }}+{{ derived.bendMinorK.toFixed(2) }})
+            </span>
           </dd>
         </div>
-        <div>
-          <dt>Head loss</dt>
-          <dd>{{ Number(snap.headLossM).toFixed(3) }} m</dd>
-        </div>
-        <div>
-          <dt>Flow</dt>
-          <dd>{{ Number(snap.flowM3s).toFixed(4) }} m³/s</dd>
-        </div>
       </dl>
-      <ul v-if="snap.warnings?.length" class="warn">
-        <li v-for="(w, i) in snap.warnings" :key="i">{{ w }}</li>
-      </ul>
-      <p class="note">
-        Steady targets from engine (create session). Actual ramped power appears in trials.
+    </section>
+    <p v-else class="placeholder card">Complete the layout for head and length.</p>
+
+    <section class="card">
+      <h3>Steady preview</h3>
+      <p v-if="!enabled" class="placeholder">Need a complete layout to evaluate.</p>
+      <p v-else-if="loading && !snap" class="placeholder">Evaluating…</p>
+      <p v-else-if="error" class="err">{{ error }}</p>
+      <template v-else-if="snap">
+        <dl>
+          <div>
+            <dt>Target P<sub>e</sub></dt>
+            <dd>{{ Number(targetKw).toFixed(3) }} kW</dd>
+          </div>
+          <div>
+            <dt>Hydraulic P</dt>
+            <dd>{{ Number(snap.hydraulicPowerKw).toFixed(3) }} kW</dd>
+          </div>
+          <div>
+            <dt>H<sub>net</sub></dt>
+            <dd>{{ Number(snap.netHeadM).toFixed(2) }} m</dd>
+          </div>
+          <div>
+            <dt>Head loss</dt>
+            <dd>{{ Number(snap.headLossM).toFixed(3) }} m</dd>
+          </div>
+          <div>
+            <dt>Flow</dt>
+            <dd>{{ Number(snap.flowM3s).toFixed(4) }} m³/s</dd>
+          </div>
+        </dl>
+        <ul v-if="snap.warnings?.length" class="warn">
+          <li v-for="(w, i) in snap.warnings" :key="i">{{ w }}</li>
+        </ul>
         <button type="button" class="link" :disabled="loading" @click="refresh">Refresh</button>
-      </p>
-    </template>
+      </template>
+    </section>
   </div>
 </template>
 
 <style scoped>
-.preview h3 {
-  margin: 0 0 0.4rem;
-  font-size: 0.82rem;
-  font-weight: 600;
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.card {
+  padding: 0.75rem 0.85rem;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+h3 {
+  margin: 0 0 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 650;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--muted-fg);
@@ -133,7 +166,7 @@ watch(
 dl {
   margin: 0;
   display: grid;
-  gap: 0.35rem;
+  gap: 0.3rem;
 }
 
 dl div {
@@ -151,32 +184,32 @@ dd {
   margin: 0;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
+  text-align: right;
+}
+
+.dim {
+  font-weight: 400;
+  color: var(--muted-fg);
+  font-size: 0.85em;
 }
 
 .warn {
-  margin: 0.5rem 0 0;
+  margin: 0.45rem 0 0;
   padding-left: 1.1rem;
   font-size: 0.75rem;
   color: #b8860b;
 }
 
-.note {
-  margin: 0.55rem 0 0;
-  font-size: 0.72rem;
-  color: var(--muted-fg);
-  line-height: 1.4;
-}
-
 .link {
+  margin-top: 0.45rem;
   font: inherit;
-  font-size: inherit;
+  font-size: 0.78rem;
   color: var(--accent);
   background: none;
   border: none;
   cursor: pointer;
   text-decoration: underline;
   padding: 0;
-  margin-left: 0.25rem;
 }
 
 .link:disabled {

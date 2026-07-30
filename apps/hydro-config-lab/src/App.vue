@@ -27,8 +27,7 @@ const tabs: { id: TabId; step: string; label: string }[] = [
 
 const instructions: Record<TabId, string> = {
   layout: "Lay out the penstock so that it runs downhill from intake to turbine.",
-  equipment:
-    "Review stream flow, penstock diameter and losses, and turbine/generator efficiencies. Head and pipe length come from the layout.",
+  equipment: "Tune stream, pipe, turbine, generator, and operator settings. Head and length stay from Layout.",
   run: "Start the energy-sim engine and play a timed run to watch power and speed ramp.",
 };
 
@@ -155,8 +154,6 @@ function goTab(id: TabId) {
         <PlantForm
           :params="params"
           :operator="operator"
-          :derived="derived"
-          :complete="layoutReady"
           @update:params="params = $event"
           @update:operator="operator = $event"
         />
@@ -165,6 +162,7 @@ function goTab(id: TabId) {
             :plant="plant"
             :operator="operator"
             :enabled="layoutReady"
+            :derived="derived"
           />
           <p v-if="compiled.ok === false && layoutReady" class="compile-err">
             {{ compiled.error }}
@@ -308,8 +306,8 @@ function goTab(id: TabId) {
 
 .equipment-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(14rem, 18rem);
-  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr) minmax(13rem, 16rem);
+  gap: 1rem;
   align-items: start;
 }
 
@@ -320,20 +318,11 @@ function goTab(id: TabId) {
 }
 
 .equipment-panel {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--panel);
-  padding: 1rem 1.1rem 1.25rem;
+  /* no extra chrome — PlantForm + SteadyPreview carry their own cards */
+  padding: 0;
 }
 
 .preview-col {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  border-radius: 8px;
-  background: var(--bg);
-  border: 1px solid var(--border);
   position: sticky;
   top: 0.5rem;
 }
