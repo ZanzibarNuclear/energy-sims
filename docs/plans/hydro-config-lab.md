@@ -1,6 +1,6 @@
 # Plan: Hydro Config Lab
 
-**Status:** Lab-PR1 scaffolded; next is Lab-PR2 (site canvas)  
+**Status:** Lab-PR2 done; next Lab-PR3 (compile + preview)  
 **Date:** 2026-07-30  
 **Design:** [../hydro-config-lab.md](../hydro-config-lab.md)  
 **Depends on:** Stage 1 engine (shipped) — server + plant/session JSON  
@@ -45,18 +45,18 @@ Stack for MVP:
   - Dev notes: run server + `npm run dev`
 - **Done when:** empty shell loads; shows server health — **met** (`npm run build` green)
 
-### Lab-PR2 — Site construction canvas (intake / penstock / turbine)
+### Lab-PR2 — Site construction canvas (intake / penstock / turbine) ✅ done
 
 - **Title:** `feat(lab): clean-slate site canvas — place intake, penstock, turbine`
-- **Affects:** site model, canvas tools, selection
+- **Affects:** `src/lib/site.ts`, `SiteCanvas.vue`, `SelectionPanel.vue`, `App.vue`
 - **Depends on:** Lab-PR1
 - **Description:**
-  - Empty site by default (`New configuration`)
+  - Empty site by default (`New`)
   - Tools: place **intake**, add **penstock bend**, place **turbine**, select/move/delete
-  - x = ground distance (m), y = elevation (m)
-  - Minimum complete layout: intake + turbine; bends optional
-  - Contextual empty states (“Place an intake to begin”)
-- **Done when:** user can build a simple two- or three-point run on a blank grid without importing a fixture
+  - x = ground distance (m), y = elevation (m); SVG canvas with drag
+  - Minimum complete layout: intake + turbine; bends optional (sorted by s)
+  - Contextual empty states and status line
+- **Done when:** user can build a simple two- or three-point run on a blank grid — **met**
 
 ### Lab-PR3 — Compile site → plant + property panel + steady preview
 

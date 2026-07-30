@@ -7,7 +7,8 @@ Plan: [`docs/plans/hydro-config-lab.md`](../../docs/plans/hydro-config-lab.md)
 
 ## Status
 
-**Lab-PR1** — Vue 3 + Vite scaffold, engine health banner, typed client. Construction tools, compile, save, and trials come next.
+**Lab-PR2** — Clean-slate site canvas: place intake, penstock bends, turbine; select/drag/delete.  
+Next: Lab-PR3 compile → plant + engine preview.
 
 ## Prerequisites
 
@@ -55,10 +56,12 @@ VITE_ENERGY_SIM_URL=http://127.0.0.1:8787 npm run dev
 
 ```text
 src/
-  App.vue                      # shell
+  App.vue
   components/
-    ServerStatus.vue           # health poll
-    SiteCanvasPlaceholder.vue  # clean-slate canvas (tools → Lab-PR2)
+    ServerStatus.vue
+    SiteCanvas.vue             # construction tools + SVG plot
+    SelectionPanel.vue         # edit selected point
   lib/
-    energySimClient.ts         # REST + WS client (from clients/js)
+    site.ts                    # site model
+    energySimClient.ts         # REST + WS client
 ```

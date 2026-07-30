@@ -1,6 +1,31 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import ServerStatus from "./components/ServerStatus.vue";
-import SiteCanvasPlaceholder from "./components/SiteCanvasPlaceholder.vue";
+import SiteCanvas from "./components/SiteCanvas.vue";
+import SelectionPanel from "./components/SelectionPanel.vue";
+import {
+  emptySite,
+  isSiteComplete,
+  type Site,
+  type SiteSelection,
+  type ToolId,
+} from "./lib/site";
+
+const site = ref<Site>(emptySite());
+const selection = ref<SiteSelection>(null);
+const tool = ref<ToolId>("intake");
+
+function newSite() {
+  if (
+    (site.value.intake || site.value.turbine || site.value.bends.length) &&
+    !confirm("Discard the current site and start a clean slate?")
+  ) {
+    return;
+  }
+  site.value = emptySite();
+  selection.value = null;
+  tool.value = "intake";
+}
 </script>
 
 <template>
@@ -14,6 +39,7 @@ import SiteCanvasPlaceholder from "./components/SiteCanvasPlaceholder.vue";
       </div>
       <div class="top-actions">
         <span class="config-name" title="Named configs in Lab-PR4">Untitled site</span>
+        <button type="button" class="btn" @click="newSite">New</button>
         <button type="button" class="btn" disabled title="Lab-PR4">Save</button>
         <button type="button" class="btn" disabled title="Lab-PR4">Export</button>
         <button type="button" class="btn" disabled title="Lab-PR4">Import…</button>
@@ -23,17 +49,23 @@ import SiteCanvasPlaceholder from "./components/SiteCanvasPlaceholder.vue";
     <ServerStatus />
 
     <div class="workspace">
-      <SiteCanvasPlaceholder />
+      <SiteCanvas
+        v-model:site="site"
+        v-model:selection="selection"
+        v-model:tool="tool"
+      />
 
       <aside class="side" aria-label="Properties">
-        <h2>Properties</h2>
-        <p class="placeholder">
-          Select a site element after construction tools land (Lab-PR2). Plant-wide stream,
-          penstock, and turbine fields follow in Lab-PR3.
-        </p>
+        <SelectionPanel v-model:site="site" v-model:selection="selection" />
+
         <div class="preview-card">
-          <h3>Steady preview</h3>
-          <p class="placeholder">Available once the site compiles to a plant and the engine is online.</p>
+          <h3>Geometry</h3>
+          <p v-if="isSiteComplete(site)" class="ok">
+            Site complete (intake + turbine). Compile &amp; preview arrive in Lab-PR3.
+          </p>
+          <p v-else class="placeholder">
+            Place intake and turbine to complete the penstock run.
+          </p>
         </div>
       </aside>
     </div>
@@ -51,11 +83,9 @@ import SiteCanvasPlaceholder from "./components/SiteCanvasPlaceholder.vue";
     </section>
 
     <footer class="foot">
-      <a href="../../docs/hydro-config-lab.md">Design</a>
+      <span>Lab-PR2 site canvas</span>
       <span class="sep">·</span>
-      <a href="../../docs/plans/hydro-config-lab.md">Plan</a>
-      <span class="sep">·</span>
-      <span>Lab-PR1 scaffold</span>
+      <span>energy-sims</span>
     </footer>
   </div>
 </template>
@@ -152,7 +182,6 @@ import SiteCanvasPlaceholder from "./components/SiteCanvasPlaceholder.vue";
   gap: 0.75rem;
 }
 
-.side h2,
 .trial h2 {
   margin: 0;
   font-size: 0.95rem;
@@ -171,6 +200,13 @@ import SiteCanvasPlaceholder from "./components/SiteCanvasPlaceholder.vue";
   background: var(--code-bg);
   padding: 0.05rem 0.3rem;
   border-radius: 3px;
+}
+
+.ok {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--fg);
 }
 
 .preview-card {
@@ -214,15 +250,6 @@ import SiteCanvasPlaceholder from "./components/SiteCanvasPlaceholder.vue";
   flex-wrap: wrap;
   gap: 0.35rem;
   align-items: center;
-}
-
-.foot a {
-  color: var(--accent);
-  text-decoration: none;
-}
-
-.foot a:hover {
-  text-decoration: underline;
 }
 
 .sep {
