@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import {
   addBendOnPenstock,
+  constrainBendPoint,
   deleteBend,
   moveBend,
   moveIntake,
   moveTurbine,
   profilePoints,
   segments,
+  validatePenstock,
   type Site,
   type SiteSelection,
 } from "../lib/site";
@@ -16,6 +18,8 @@ import {
   DEFAULT_VIEW,
   displayToWorld,
   elevationOriginZ,
+  FIT_MARGIN_M,
+  fitViewToPoints,
   GRID_STEP_M,
   markerRadiusM,
   snapPoint,
@@ -47,10 +51,30 @@ const dragElevOrigin = ref<number | null>(null);
 const suppressCanvasClick = ref(false);
 const snapToGrid = ref(true);
 const view = ref<WorldBounds>({ ...DEFAULT_VIEW });
+const clampHint = ref("");
 
 const elevOriginLive = computed(() => elevationOriginZ(props.site.turbine.zM));
 const elevOrigin = computed(() =>
   dragElevOrigin.value != null ? dragElevOrigin.value : elevOriginLive.value,
+);
+
+const penstockIssues = computed(() => validatePenstock(props.site));
+
+function refitView() {
+  view.value = fitViewToPoints(
+    profilePoints(props.site),
+    elevationOriginZ(props.site.turbine.zM),
+    FIT_MARGIN_M,
+  );
+}
+
+// Auto-fit when layout changes (not mid-drag — refit on release instead).
+watch(
+  () => props.site,
+  () => {
+    if (!dragging.value) refitView();
+  },
+  { deep: true, immediate: true },
 );
 
 const viewBox = computed(() => toSvgViewBox(view.value));
@@ -224,22 +248,38 @@ function onPointerDown(target: DragTarget, ev: PointerEvent) {
   svgRef.value?.setPointerCapture?.(ev.pointerId);
 }
 
+function noteClamp(requested: { sM: number; zM: number }, applied: { sM: number; zM: number }) {
+  const elevBlocked = Math.abs(requested.zM - applied.zM) > 0.05;
+  const sBlocked = Math.abs(requested.sM - applied.sM) > 0.05;
+  if (!elevBlocked && !sBlocked) {
+    clampHint.value = "";
+    return;
+  }
+  clampHint.value =
+    "Penstock tip: keep the pipe downhill (or flat) from intake to turbine. " +
+    "Bends cannot rise above the previous point or the intake, and nothing can sit below the turbine — " +
+    "an uphill pocket traps air and stalls gravity flow.";
+}
+
 function onPointerMove(ev: PointerEvent) {
   if (!dragging.value) return;
   const world = clientToWorld(ev);
   if (!world) return;
   const t = dragging.value;
   if (t.kind === "intake") {
-    emit("update:site", moveIntake(props.site, world));
+    const site = moveIntake(props.site, world);
+    noteClamp(world, site.intake);
+    emit("update:site", site);
   } else if (t.kind === "turbine") {
-    emit("update:site", moveTurbine(props.site, world));
+    const site = moveTurbine(props.site, world);
+    noteClamp(world, site.turbine);
+    emit("update:site", site);
   } else {
-    // After sort, index may shift — track by dragging index carefully:
-    // re-find bend that was selected
+    const applied = constrainBendPoint(props.site, t.index, world);
+    noteClamp(world, applied);
     const site = moveBend(props.site, t.index, world);
-    // selection index after sort
     const idx = site.bends.findIndex(
-      (b) => Math.abs(b.sM - world.sM) < 1e-6 && Math.abs(b.zM - world.zM) < 1e-6,
+      (b) => Math.abs(b.sM - applied.sM) < 1e-6 && Math.abs(b.zM - applied.zM) < 1e-6,
     );
     emit("update:site", site);
     if (idx >= 0) {
@@ -263,6 +303,7 @@ function onPointerUp(ev: PointerEvent) {
   } catch {
     /* ignore */
   }
+  refitView();
 }
 
 function onCanvasClick(ev: MouseEvent) {
@@ -297,6 +338,14 @@ function isBendSelected(i: number): boolean {
         Delete bend
       </button>
     </header>
+
+    <p v-if="clampHint || penstockIssues.length" class="edu" role="status">
+      {{ clampHint || penstockIssues[0]?.message }}
+    </p>
+    <p v-else class="edu quiet">
+      Gravity diversion: the penstock must run downhill or flat to the turbine — no high points after
+      the intake, and nothing below the turbine floor.
+    </p>
 
     <div class="plot-wrap">
       <svg
@@ -569,6 +618,22 @@ function isBendSelected(i: number): boolean {
   color: #c44;
   border-color: color-mix(in srgb, #c44 45%, var(--border));
   margin-left: auto;
+}
+
+.edu {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--fg);
+  background: color-mix(in srgb, #c9a227 16%, var(--toolbar));
+  border-bottom: 1px solid color-mix(in srgb, #c9a227 35%, var(--border));
+}
+
+.edu.quiet {
+  background: var(--toolbar);
+  color: var(--muted-fg);
+  border-bottom-color: var(--border);
 }
 
 .plot-wrap {

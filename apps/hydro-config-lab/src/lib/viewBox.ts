@@ -106,3 +106,55 @@ export function displayToWorld(
 ): { sM: number; zM: number } {
   return { sM: s, zM: z + elevOriginZ };
 }
+
+/** Margin when auto-fitting the view around the site (meters). */
+export const FIT_MARGIN_M = 30;
+
+/**
+ * Fit display bounds to site points (elevation relative to turbine).
+ * Leaves ~FIT_MARGIN_M padding on the top and right (and left/bottom for balance).
+ * Axis meanings stay the same — only the visible window changes.
+ */
+export function fitViewToPoints(
+  points: { sM: number; zM: number }[],
+  elevOriginZ: number,
+  margin: number = FIT_MARGIN_M,
+): WorldBounds {
+  if (points.length === 0) return { ...DEFAULT_VIEW };
+
+  let sMin = Infinity;
+  let sMax = -Infinity;
+  let zMin = Infinity;
+  let zMax = -Infinity;
+  for (const p of points) {
+    const d = worldToDisplay(p.sM, p.zM, elevOriginZ);
+    sMin = Math.min(sMin, d.s);
+    sMax = Math.max(sMax, d.s);
+    zMin = Math.min(zMin, d.z);
+    zMax = Math.max(zMax, d.z);
+  }
+
+  // Ensure turbine elev 0 is in view
+  zMin = Math.min(zMin, 0);
+  zMax = Math.max(zMax, 0);
+
+  // Minimum span so a tight layout still has room to drag
+  const minSpan = 80;
+  if (sMax - sMin < minSpan) {
+    const mid = (sMin + sMax) / 2;
+    sMin = mid - minSpan / 2;
+    sMax = mid + minSpan / 2;
+  }
+  if (zMax - zMin < minSpan * 0.5) {
+    const mid = (zMin + zMax) / 2;
+    zMin = mid - (minSpan * 0.5) / 2;
+    zMax = mid + (minSpan * 0.5) / 2;
+  }
+
+  return {
+    sMin: sMin - margin,
+    sMax: sMax + margin,
+    zMin: zMin - margin * 0.5,
+    zMax: zMax + margin,
+  };
+}

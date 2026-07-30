@@ -138,20 +138,156 @@ export function deleteBend(site: Site, index: number): Site {
 export function moveBend(site: Site, index: number, point: SitePoint): Site {
   if (index < 0 || index >= site.bends.length) return site;
   const next = cloneSite(site);
-  next.bends[index] = { ...point };
+  next.bends[index] = constrainBendPoint(next, index, point);
   next.bends.sort((a, b) => a.sM - b.sM);
   return next;
 }
 
 export function moveIntake(site: Site, point: SitePoint): Site {
-  return { ...cloneSite(site), intake: { ...point } };
+  const next = cloneSite(site);
+  next.intake = constrainIntakePoint(next, point);
+  return next;
 }
 
 export function moveTurbine(site: Site, point: SitePoint): Site {
-  return { ...cloneSite(site), turbine: { ...point } };
+  const next = cloneSite(site);
+  next.turbine = constrainTurbinePoint(next, point);
+  // Keep penstock above the new turbine floor.
+  next.intake = {
+    ...next.intake,
+    zM: Math.max(next.intake.zM, next.turbine.zM),
+  };
+  next.bends = next.bends.map((b) => ({
+    ...b,
+    zM: Math.max(b.zM, next.turbine.zM),
+  }));
+  return enforceMonotonicElevations(next);
 }
 
 export function roundCoord(n: number, digits = 2): number {
   const f = 10 ** digits;
   return Math.round(n * f) / f;
+}
+
+// ── Penstock gravity-flow rules ──────────────────────────────────────────
+
+/**
+ * Real diversion penstocks need a continuous downhill (or flat) run:
+ * no high points after the intake (air pockets / reverse slope), and
+ * nothing below the turbine elevation.
+ */
+export type PenstockIssue = {
+  code: "uphill" | "below_turbine" | "above_intake";
+  message: string;
+};
+
+export function validatePenstock(site: Site): PenstockIssue[] {
+  const issues: PenstockIssue[] = [];
+  const pts = profilePoints(site);
+  const zTurbine = site.turbine.zM;
+  const zIntake = site.intake.zM;
+
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i]!;
+    if (p.zM < zTurbine - 1e-6) {
+      issues.push({
+        code: "below_turbine",
+        message:
+          "A penstock point sits below the turbine. Water would pool there and not reach the machine — keep every point at or above the turbine floor.",
+      });
+      break;
+    }
+  }
+
+  if (pts.some((p, i) => i > 0 && p.zM > zIntake + 1e-6)) {
+    issues.push({
+      code: "above_intake",
+      message:
+        "A bend rises above the intake. The free surface / pressure line starts at the intake — a higher bend would need pumping or create a siphon risk in teaching-scale diversion plants.",
+    });
+  }
+
+  for (let i = 1; i < pts.length; i++) {
+    const prev = pts[i - 1]!;
+    const cur = pts[i]!;
+    if (cur.zM > prev.zM + 1e-6) {
+      issues.push({
+        code: "uphill",
+        message:
+          "The penstock has an uphill stretch. Gravity diversion needs a downhill (or flat) profile along the pipe so the flow does not stall or trap air at a high point.",
+      });
+      break;
+    }
+  }
+
+  return issues;
+}
+
+/** Clamp a candidate bend so elev is between neighbors and ≥ turbine. */
+export function constrainBendPoint(
+  site: Site,
+  bendIndex: number,
+  point: SitePoint,
+): SitePoint {
+  const pts = profilePoints(site);
+  // path index of this bend = 1 + bendIndex
+  const pathI = 1 + bendIndex;
+  const prev = pts[pathI - 1] ?? site.intake;
+  const next = pts[pathI + 1] ?? site.turbine;
+  const zHi = Math.min(prev.zM, site.intake.zM);
+  const zLo = Math.max(next.zM, site.turbine.zM);
+  let zM = Math.min(zHi, Math.max(zLo, point.zM));
+  // Keep between neighbors horizontally when possible
+  const sLo = Math.min(prev.sM, next.sM);
+  const sHi = Math.max(prev.sM, next.sM);
+  let sM = point.sM;
+  if (sHi - sLo > 1e-6) {
+    sM = Math.min(sHi, Math.max(sLo, sM));
+  }
+  return { sM, zM };
+}
+
+export function constrainIntakePoint(site: Site, point: SitePoint): SitePoint {
+  // Intake must stay at/above every downstream point and the turbine.
+  const minDownstream = Math.max(
+    site.turbine.zM,
+    ...site.bends.map((b) => b.zM),
+  );
+  return {
+    sM: point.sM,
+    zM: Math.max(point.zM, minDownstream),
+  };
+}
+
+export function constrainTurbinePoint(site: Site, point: SitePoint): SitePoint {
+  // Turbine is the low end: not above the nearest upstream point.
+  const upstream =
+    site.bends.length > 0 ? site.bends[site.bends.length - 1]! : site.intake;
+  return {
+    sM: point.sM,
+    zM: Math.min(point.zM, upstream.zM),
+  };
+}
+
+/** After bulk edits, walk intake→turbine and push elevations downhill only. */
+export function enforceMonotonicElevations(site: Site): Site {
+  const next = cloneSite(site);
+  const pts = profilePoints(next);
+  // Forward: each point ≤ previous
+  for (let i = 1; i < pts.length; i++) {
+    if (pts[i]!.zM > pts[i - 1]!.zM) {
+      pts[i] = { ...pts[i]!, zM: pts[i - 1]!.zM };
+    }
+  }
+  // Backward from turbine floor: each point ≥ turbine
+  const zT = pts[pts.length - 1]!.zM;
+  for (let i = 0; i < pts.length; i++) {
+    if (pts[i]!.zM < zT) {
+      pts[i] = { ...pts[i]!, zM: zT };
+    }
+  }
+  next.intake = pts[0]!;
+  next.turbine = pts[pts.length - 1]!;
+  next.bends = pts.slice(1, -1);
+  return next;
 }
