@@ -43,6 +43,8 @@ type DragTarget =
 const svgRef = ref<SVGSVGElement | null>(null);
 const dragging = ref<DragTarget | null>(null);
 const dragElevOrigin = ref<number | null>(null);
+/** After interacting with a node, ignore the synthetic canvas click that would clear selection. */
+const suppressCanvasClick = ref(false);
 const snapToGrid = ref(true);
 const view = ref<WorldBounds>({ ...DEFAULT_VIEW });
 
@@ -209,6 +211,9 @@ function onDeleteSelectedBend() {
 function onPointerDown(target: DragTarget, ev: PointerEvent) {
   ev.stopPropagation();
   ev.preventDefault();
+  // Pointer capture makes the following click land on the SVG, which would
+  // otherwise clear bend selection immediately on mouse-up.
+  suppressCanvasClick.value = true;
   if (target.kind === "bend") {
     emit("update:selection", { kind: "bend", index: target.index });
   } else {
@@ -246,8 +251,13 @@ function onPointerMove(ev: PointerEvent) {
 
 function onPointerUp(ev: PointerEvent) {
   if (!dragging.value) return;
+  const ended = dragging.value;
   dragging.value = null;
   dragElevOrigin.value = null;
+  // Keep bend selected after click/drag so Delete bend stays available.
+  if (ended.kind === "bend") {
+    emit("update:selection", { kind: "bend", index: ended.index });
+  }
   try {
     svgRef.value?.releasePointerCapture?.(ev.pointerId);
   } catch {
@@ -256,6 +266,10 @@ function onPointerUp(ev: PointerEvent) {
 }
 
 function onCanvasClick(ev: MouseEvent) {
+  if (suppressCanvasClick.value) {
+    suppressCanvasClick.value = false;
+    return;
+  }
   if (dragging.value) return;
   if ((ev.target as Element).closest?.(".node")) return;
   emit("update:selection", null);
@@ -415,6 +429,7 @@ function isBendSelected(i: number): boolean {
         <g
           class="node intake"
           @pointerdown="onPointerDown({ kind: 'intake' }, $event)"
+          @click.stop
         >
           <circle
             :cx="toDisplay(site.intake).s"
@@ -446,6 +461,7 @@ function isBendSelected(i: number): boolean {
           class="node bend"
           :class="{ selected: isBendSelected(i) }"
           @pointerdown="onPointerDown({ kind: 'bend', index: i }, $event)"
+          @click.stop
         >
           <circle
             :cx="toDisplay(b).s"
@@ -474,6 +490,7 @@ function isBendSelected(i: number): boolean {
         <g
           class="node turbine"
           @pointerdown="onPointerDown({ kind: 'turbine' }, $event)"
+          @click.stop
         >
           <circle
             :cx="toDisplay(site.turbine).s"
