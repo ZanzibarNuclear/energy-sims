@@ -311,11 +311,7 @@ function isBendSelected(i: number): boolean {
 <template>
   <section class="canvas" aria-label="Site layout">
     <header class="toolbar">
-      <label class="snap" title="Snap drag to the grid">
-        <input v-model="snapToGrid" type="checkbox" />
-        Snap to grid
-      </label>
-      <button type="button" class="tool primary" @click="onAddBend">Add a bend</button>
+      <button type="button" class="tool primary" @click="onAddBend">+ Bend</button>
       <button
         v-if="selection"
         type="button"
@@ -324,6 +320,10 @@ function isBendSelected(i: number): boolean {
       >
         Delete bend
       </button>
+      <label class="snap" title="Snap drag to the grid">
+        <input v-model="snapToGrid" type="checkbox" />
+        Snap to grid
+      </label>
     </header>
 
     <p v-if="clampHint" class="edu" role="status">{{ clampHint }}</p>
@@ -609,6 +609,9 @@ function isBendSelected(i: number): boolean {
 .tool.danger {
   color: #c44;
   border-color: color-mix(in srgb, #c44 45%, var(--border));
+}
+
+.snap {
   margin-left: auto;
 }
 

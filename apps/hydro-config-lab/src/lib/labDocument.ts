@@ -1,13 +1,11 @@
 /**
- * Lab document format for save/load (includes site geometry metadata).
- * Export plant JSON uses engine schema only (no lab wrapper).
+ * Single lab configuration JSON: site layout + equipment + operator.
+ * Save downloads this file; Open loads it back.
  */
 
-import { compileSite, siteFromPlantGeometry } from "./compileSite";
 import {
   defaultOperator,
   defaultPlantParams,
-  type HydroPlantJson,
   type OperatorInputs,
   type PlantParams,
 } from "./plantParams";
@@ -20,7 +18,15 @@ export type LabDocument = {
   schemaVersion: number;
   kind: typeof LAB_DOC_KIND;
   name: string;
+  /** ISO timestamp of last Save (file artifact). */
   savedAt: string;
+  site: Site;
+  params: PlantParams;
+  operator: OperatorInputs;
+};
+
+export type LabState = {
+  name: string;
   site: Site;
   params: PlantParams;
   operator: OperatorInputs;
@@ -31,12 +37,13 @@ export function createLabDocument(
   site: Site,
   params: PlantParams,
   operator: OperatorInputs,
+  savedAt: string = new Date().toISOString(),
 ): LabDocument {
   return {
     schemaVersion: LAB_DOC_VERSION,
     kind: LAB_DOC_KIND,
     name: name.trim() || "Untitled site",
-    savedAt: new Date().toISOString(),
+    savedAt,
     site: cloneSite(site),
     params: structuredClone(params),
     operator: structuredClone(operator),
@@ -46,116 +53,54 @@ export function createLabDocument(
 export function isLabDocument(value: unknown): value is LabDocument {
   if (!value || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
-  return v.kind === LAB_DOC_KIND && v.schemaVersion === LAB_DOC_VERSION && !!v.site;
+  return v.kind === LAB_DOC_KIND && typeof v.site === "object" && v.site != null;
 }
 
-export function isHydroPlantJson(value: unknown): value is HydroPlantJson {
-  if (!value || typeof value !== "object") return false;
-  const v = value as Record<string, unknown>;
-  return v.kind === "hydro-plant" && typeof v.penstock === "object" && v.penstock != null;
-}
-
-/** Parse import: lab document or bare plant JSON. */
-export function parseImport(text: string): {
-  name: string;
-  site: Site;
-  params: PlantParams;
-  operator: OperatorInputs;
-} {
+/** Parse a saved configuration file (full lab JSON only). */
+export function parseLabFile(text: string): LabState {
   const data = JSON.parse(text) as unknown;
-  if (isLabDocument(data)) {
-    return {
-      name: data.name,
-      site: normalizeSite(data.site),
-      params: { ...defaultPlantParams(), ...data.params },
-      operator: { ...defaultOperator(), ...data.operator },
-    };
+  if (!isLabDocument(data)) {
+    throw new Error(
+      'Not a hydro config lab file. Expected JSON with kind "hydro-config-lab".',
+    );
   }
-  if (isHydroPlantJson(data)) {
-    return plantJsonToLabState(data);
-  }
-  throw new Error('Unrecognized JSON: expected kind "hydro-config-lab" or "hydro-plant".');
-}
-
-export function plantJsonToLabState(plant: HydroPlantJson): {
-  name: string;
-  site: Site;
-  params: PlantParams;
-  operator: OperatorInputs;
-} {
-  const params = defaultPlantParams();
-  params.id = plant.id || params.id;
-  params.label = plant.label || params.label;
-  params.stream.availableFlowM3s = plant.stream?.availableFlowM3s ?? params.stream.availableFlowM3s;
-  params.penstock.diameterM = plant.penstock.diameterM;
-  params.penstock.frictionFactor = plant.penstock.frictionFactor ?? 0.02;
-  params.penstock.baseMinorLossCoefficient = plant.penstock.minorLossCoefficient ?? 0.5;
-  // Geometry encoded in plant only — reconstruct a simple two-point profile.
-  params.penstock.overrideHead = false;
-  params.penstock.overrideLength = false;
-  params.penstock.overrideMinorLoss = false;
-  params.penstock.overrideGrossHeadM = plant.penstock.grossHeadM;
-  params.penstock.overrideLengthM = plant.penstock.lengthM;
-  params.penstock.overrideMinorLossCoefficient = plant.penstock.minorLossCoefficient ?? 0.5;
-
-  if (plant.turbine) {
-    params.turbine.efficiency = plant.turbine.efficiency;
-    params.turbine.designFlowM3s = plant.turbine.designFlowM3s;
-    params.turbine.maxSafeFlowM3s =
-      plant.turbine.maxSafeFlowM3s ?? params.turbine.maxSafeFlowM3s;
-    params.turbine.designSpeedRpm =
-      plant.turbine.designSpeedRpm ?? params.turbine.designSpeedRpm;
-    if (plant.turbine.dynamics) {
-      params.turbine.dynamics = { ...params.turbine.dynamics, ...plant.turbine.dynamics };
-    }
-  }
-  if (plant.generator) {
-    params.generator.efficiency = plant.generator.efficiency;
-    params.generator.ratedPowerKw = plant.generator.ratedPowerKw;
-  }
-  if (plant.fluid) {
-    params.fluid.densityKgM3 = plant.fluid.densityKgM3 ?? params.fluid.densityKgM3;
-    params.fluid.gravityMs2 = plant.fluid.gravityMs2 ?? params.fluid.gravityMs2;
-  }
-
-  const site = siteFromPlantGeometry(plant.penstock.grossHeadM, plant.penstock.lengthM);
   return {
-    name: plant.label || plant.id || "Imported plant",
-    site,
-    params,
-    operator: defaultOperator(),
+    name: data.name || "Untitled site",
+    site: normalizeSite(data.site),
+    params: { ...defaultPlantParams(), ...data.params },
+    operator: { ...defaultOperator(), ...data.operator },
   };
 }
 
-export function exportPlantJson(
-  site: Site,
-  params: PlantParams,
-): { ok: true; plant: HydroPlantJson; text: string } | { ok: false; error: string } {
-  const r = compileSite(site, params);
-  if (!r.ok) return r;
-  return {
-    ok: true,
-    plant: r.plant,
-    text: JSON.stringify(r.plant, null, 2) + "\n",
-  };
+/** Filename: site-name-YYYYMMDD-HHMMSS.json */
+export function labFilename(name: string, savedAt: string = new Date().toISOString()): string {
+  const slug =
+    (name.trim() || "untitled-site")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "untitled-site";
+  const d = new Date(savedAt);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const stamp = Number.isFinite(d.getTime())
+    ? `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
+    : "saved";
+  return `${slug}-${stamp}.json`;
 }
 
-export function downloadText(filename: string, text: string, mime = "application/json") {
-  const blob = new Blob([text], { type: mime });
+export function downloadLabFile(doc: LabDocument): string {
+  const filename = labFilename(doc.name, doc.savedAt);
+  const text = JSON.stringify(doc, null, 2) + "\n";
+  const blob = new Blob([text], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+  return filename;
 }
 
-export function emptyLabState(): {
-  name: string;
-  site: Site;
-  params: PlantParams;
-  operator: OperatorInputs;
-} {
+export function emptyLabState(): LabState {
   return {
     name: "Untitled site",
     site: defaultSite(),

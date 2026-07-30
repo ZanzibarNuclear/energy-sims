@@ -7,8 +7,8 @@ Plan: [`docs/plans/hydro-config-lab.md`](../../docs/plans/hydro-config-lab.md)
 
 ## Status
 
-**Workflow UI** — three tabs: **Layout** → **Equipment** → **Run**. File actions in the ☰ menu.  
-Paused before station loads (Lab-PR6).
+**Workflow UI** — three tabs: **Layout** → **Equipment** → **Run**.  
+**Save** downloads full config JSON; **Open** loads it. The browser auto-saves a draft for refresh.
 
 ## Prerequisites
 
@@ -75,4 +75,4 @@ src/
 2. **Equipment** — stream flow, diameter, friction, η, operator; steady preview  
 3. **Run** — engine status, ▶ Play / ⏹ Stop, power & speed charts  
 
-File menu (☰): New, Save, Export plant/lab JSON, Import.
+File menu (☰): New site, Save (JSON file), Open (JSON file).

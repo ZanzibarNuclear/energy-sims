@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import AppMenu from "./components/AppMenu.vue";
 import ServerStatus from "./components/ServerStatus.vue";
 import SiteCanvas from "./components/SiteCanvas.vue";
@@ -7,6 +7,7 @@ import PlantForm from "./components/PlantForm.vue";
 import SteadyPreview from "./components/SteadyPreview.vue";
 import TrialRunner from "./components/TrialRunner.vue";
 import { compileSite } from "./lib/compileSite";
+import { clearDraft, loadDraft, saveDraft } from "./lib/draftStore";
 import { emptyLabState } from "./lib/labDocument";
 import type { OperatorInputs, PlantParams } from "./lib/plantParams";
 import {
@@ -39,11 +40,33 @@ const site = ref<Site>(initial.site);
 const selection = ref<SiteSelection>(null);
 const params = ref<PlantParams>(initial.params);
 const operator = ref<OperatorInputs>(initial.operator);
+const ready = ref(false);
 
 const compiled = computed(() => compileSite(site.value, params.value));
 const plant = computed(() => (compiled.value.ok ? compiled.value.plant : null));
 const derived = computed(() => (compiled.value.ok ? compiled.value.derived : null));
 const layoutReady = computed(() => isSiteComplete(site.value));
+
+onMounted(() => {
+  const draft = loadDraft();
+  if (draft) {
+    configName.value = draft.name;
+    site.value = normalizeSite(draft.site);
+    params.value = draft.params;
+    operator.value = draft.operator;
+  }
+  ready.value = true;
+});
+
+// Auto-save working state to the browser (resume after refresh).
+watch(
+  [configName, site, params, operator],
+  () => {
+    if (!ready.value) return;
+    saveDraft(configName.value, site.value, params.value, operator.value);
+  },
+  { deep: true },
+);
 
 function newSite() {
   if (!confirm("Reset to the default layout (intake + turbine)?")) return;
@@ -54,6 +77,8 @@ function newSite() {
   params.value = s.params;
   operator.value = s.operator;
   tab.value = "layout";
+  clearDraft();
+  saveDraft(configName.value, site.value, params.value, operator.value);
 }
 
 function onLoad(state: {
