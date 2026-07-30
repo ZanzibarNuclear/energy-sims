@@ -575,6 +575,7 @@ function isBendSelected(i: number): boolean {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+  margin-left: auto;
   font-size: 0.85rem;
   color: var(--fg);
   user-select: none;
@@ -609,10 +610,6 @@ function isBendSelected(i: number): boolean {
 .tool.danger {
   color: #c44;
   border-color: color-mix(in srgb, #c44 45%, var(--border));
-}
-
-.snap {
-  margin-left: auto;
 }
 
 .edu {
