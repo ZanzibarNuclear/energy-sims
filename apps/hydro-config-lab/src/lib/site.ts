@@ -193,7 +193,7 @@ export function validatePenstock(site: Site): PenstockIssue[] {
       issues.push({
         code: "below_turbine",
         message:
-          "A penstock point sits below the turbine. Water would pool there and not reach the machine — keep every point at or above the turbine floor.",
+          "A penstock point sits below the turbine. Water would pool there and not reach the machine. Keep every point at or above the turbine floor.",
       });
       break;
     }
@@ -203,7 +203,7 @@ export function validatePenstock(site: Site): PenstockIssue[] {
     issues.push({
       code: "above_intake",
       message:
-        "A bend rises above the intake. The free surface / pressure line starts at the intake — a higher bend would need pumping or create a siphon risk in teaching-scale diversion plants.",
+        "A bend rises above the intake. The free surface / pressure line starts at the intake, so a higher bend would need pumping or create a siphon risk in teaching-scale diversion plants.",
     });
   }
 

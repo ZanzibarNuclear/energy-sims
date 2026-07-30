@@ -257,8 +257,8 @@ function noteClamp(requested: { sM: number; zM: number }, applied: { sM: number;
   }
   clampHint.value =
     "Penstock tip: keep the pipe downhill (or flat) from intake to turbine. " +
-    "Bends cannot rise above the previous point or the intake, and nothing can sit below the turbine — " +
-    "an uphill pocket traps air and stalls gravity flow.";
+    "Bends cannot rise above the previous point or the intake, and nothing can sit below the turbine, " +
+    "because an uphill pocket traps air and stalls gravity flow.";
 }
 
 function onPointerMove(ev: PointerEvent) {
