@@ -160,7 +160,8 @@ const pipeLengthLabel = computed(() => {
     ps = -ps;
     pz = -pz;
   }
-  const offset = Math.max(fontM.value * 1.4, 6);
+  // Sit well clear of segment slope labels on the penstock.
+  const offset = Math.max(fontM.value * 3.2, 14);
   return {
     s: d.s + ps * offset,
     z: d.z + pz * offset,
