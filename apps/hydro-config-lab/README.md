@@ -7,8 +7,8 @@ Plan: [`docs/plans/hydro-config-lab.md`](../../docs/plans/hydro-config-lab.md)
 
 ## Status
 
-**Lab-PR3** — Compile site → plant JSON, property form, steady engine preview.  
-Next: Lab-PR4 named save / export / import.
+**Lab-PR4** — Named configs (localStorage), export plant/lab JSON, import plant or lab docs.  
+Next: Lab-PR5 trial runner + charts.
 
 ## Prerequisites
 

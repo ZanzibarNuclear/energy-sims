@@ -1,6 +1,6 @@
 # Plan: Hydro Config Lab
 
-**Status:** Lab-PR3 done; next Lab-PR4 (save/export/import)  
+**Status:** Lab-PR4 done; next Lab-PR5 (trials)  
 **Date:** 2026-07-30  
 **Design:** [../hydro-config-lab.md](../hydro-config-lab.md)  
 **Depends on:** Stage 1 engine (shipped) — server + plant/session JSON  
@@ -71,17 +71,17 @@ Stack for MVP:
   - Unit tests for compile math (`npm test` — 10 cases)
 - **Done when:** higher intake → higher target power; extra bend → higher K — **met**
 
-### Lab-PR4 — Named configs save/load/export + optional import
+### Lab-PR4 — Named configs save/load/export + optional import ✅ done
 
 - **Title:** `feat(lab): named configuration store and JSON import/export`
-- **Affects:** config store, export/import UI
+- **Affects:** `configStore.ts`, `labDocument.ts`, `ConfigToolbar.vue`
 - **Depends on:** Lab-PR3
 - **Description:**
-  - Save / Save as / delete named configs (localStorage), including **site geometry metadata**
-  - Download plant JSON (engine schema)
-  - **Import** optional (fixtures or any plant JSON)—reconstructs a simple profile when possible; never the default home screen
-  - Document how to copy into `fixtures/plants/` for the repo
-- **Done when:** author can close browser, reopen a named site, and continue; export validates in CLI `hydro eval`
+  - Save / Save as / delete named configs (localStorage), including **site geometry**
+  - Export plant JSON (engine schema) and full lab document
+  - Import lab docs or bare plant JSON (reconstructs two-point profile)
+  - Default home remains clean slate
+- **Done when:** save/reload named site; export plant for CLI — **met**
 
 ### Lab-PR5 — Trial runner + charts
 

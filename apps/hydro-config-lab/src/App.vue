@@ -1,30 +1,28 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import ConfigToolbar from "./components/ConfigToolbar.vue";
 import ServerStatus from "./components/ServerStatus.vue";
 import SiteCanvas from "./components/SiteCanvas.vue";
 import SelectionPanel from "./components/SelectionPanel.vue";
 import PlantForm from "./components/PlantForm.vue";
 import SteadyPreview from "./components/SteadyPreview.vue";
 import { compileSite } from "./lib/compileSite";
+import { emptyLabState } from "./lib/labDocument";
+import type { OperatorInputs, PlantParams } from "./lib/plantParams";
 import {
-  defaultOperator,
-  defaultPlantParams,
-  type OperatorInputs,
-  type PlantParams,
-} from "./lib/plantParams";
-import {
-  emptySite,
   isSiteComplete,
   type Site,
   type SiteSelection,
   type ToolId,
 } from "./lib/site";
 
-const site = ref<Site>(emptySite());
+const initial = emptyLabState();
+const configName = ref(initial.name);
+const site = ref<Site>(initial.site);
 const selection = ref<SiteSelection>(null);
 const tool = ref<ToolId>("intake");
-const params = ref<PlantParams>(defaultPlantParams());
-const operator = ref<OperatorInputs>(defaultOperator());
+const params = ref<PlantParams>(initial.params);
+const operator = ref<OperatorInputs>(initial.operator);
 
 const compiled = computed(() => compileSite(site.value, params.value));
 const plant = computed(() => (compiled.value.ok ? compiled.value.plant : null));
@@ -37,11 +35,27 @@ function newSite() {
   ) {
     return;
   }
-  site.value = emptySite();
+  const s = emptyLabState();
+  configName.value = s.name;
+  site.value = s.site;
   selection.value = null;
   tool.value = "intake";
-  params.value = defaultPlantParams();
-  operator.value = defaultOperator();
+  params.value = s.params;
+  operator.value = s.operator;
+}
+
+function onLoad(state: {
+  name: string;
+  site: Site;
+  params: PlantParams;
+  operator: OperatorInputs;
+}) {
+  configName.value = state.name;
+  site.value = state.site;
+  params.value = state.params;
+  operator.value = state.operator;
+  selection.value = null;
+  tool.value = "select";
 }
 </script>
 
@@ -54,13 +68,15 @@ function newSite() {
           Prototype plant layouts against the production energy-sim engine
         </p>
       </div>
-      <div class="top-actions">
-        <span class="config-name" title="Named configs in Lab-PR4">Untitled site</span>
-        <button type="button" class="btn" @click="newSite">New</button>
-        <button type="button" class="btn" disabled title="Lab-PR4">Save</button>
-        <button type="button" class="btn" disabled title="Lab-PR4">Export</button>
-        <button type="button" class="btn" disabled title="Lab-PR4">Import…</button>
-      </div>
+      <ConfigToolbar
+        :name="configName"
+        :site="site"
+        :params="params"
+        :operator="operator"
+        @update:name="configName = $event"
+        @new="newSite"
+        @load="onLoad"
+      />
     </header>
 
     <ServerStatus />
@@ -108,7 +124,7 @@ function newSite() {
     </section>
 
     <footer class="foot">
-      <span>Lab-PR3 compile + preview</span>
+      <span>Lab-PR4 save / export / import</span>
       <span class="sep">·</span>
       <span>energy-sims</span>
     </footer>
@@ -144,22 +160,6 @@ function newSite() {
   margin: 0.25rem 0 0;
   color: var(--muted-fg);
   font-size: 0.9rem;
-}
-
-.top-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.config-name {
-  font-size: 0.85rem;
-  color: var(--muted-fg);
-  padding: 0.3rem 0.55rem;
-  border: 1px dashed var(--border);
-  border-radius: 6px;
-  margin-right: 0.25rem;
 }
 
 .btn {
