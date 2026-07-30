@@ -115,6 +115,59 @@ const triangle = computed(() => {
   };
 });
 
+/**
+ * Label position for total pipe L: midpoint along the actual penstock path,
+ * offset perpendicular (upslope / "above" the line) so it tracks bends.
+ */
+const pipeLengthLabel = computed(() => {
+  const list = segs.value;
+  if (list.length === 0) return null;
+  const total = list.reduce((sum, s) => sum + s.lengthM, 0);
+  if (total < 1e-9) return null;
+
+  let remaining = total / 2;
+  let from = list[0]!.from;
+  let to = list[0]!.to;
+  for (const seg of list) {
+    if (remaining <= seg.lengthM) {
+      from = seg.from;
+      to = seg.to;
+      break;
+    }
+    remaining -= seg.lengthM;
+  }
+  const segLen = Math.hypot(to.sM - from.sM, to.zM - from.zM);
+  const t = segLen > 1e-9 ? remaining / segLen : 0.5;
+  const mid = {
+    sM: from.sM + (to.sM - from.sM) * t,
+    zM: from.zM + (to.zM - from.zM) * t,
+  };
+  const d = toDisplay(mid);
+
+  // Unit direction of this segment in display space; offset perpendicular.
+  const a = toDisplay(from);
+  const b = toDisplay(to);
+  let ds = b.s - a.s;
+  let dz = b.z - a.z;
+  const n = Math.hypot(ds, dz) || 1;
+  ds /= n;
+  dz /= n;
+  // Perpendicular in (s, z): (-dz, ds). Prefer the side with higher elevation
+  // (away from the downhill side) so the label sits in open air.
+  let ps = -dz;
+  let pz = ds;
+  if (pz < 0) {
+    ps = -ps;
+    pz = -pz;
+  }
+  const offset = Math.max(fontM.value * 1.4, 6);
+  return {
+    s: d.s + ps * offset,
+    z: d.z + pz * offset,
+    pipeM: total,
+  };
+});
+
 function clientToWorld(ev: PointerEvent | MouseEvent): { sM: number; zM: number } | null {
   const svg = svgRef.value;
   if (!svg) return null;
@@ -328,18 +381,21 @@ function isBendSelected(i: number): boolean {
           >
             run {{ triangle.runM.toFixed(0) }} m
           </text>
-          <text
-            :x="(triangle.intakeD.s + triangle.turbineD.s) / 2 + fontM * 0.8"
-            :y="-(triangle.intakeD.z + triangle.turbineD.z) / 2"
-            text-anchor="start"
-            :font-size="fontM * 0.9"
-            class="tri-label hyp"
-          >
-            pipe L {{ triangle.pipeM.toFixed(0) }} m
-          </text>
         </g>
 
         <polyline :points="polyline" class="penstock" fill="none" />
+
+        <!-- Pipe L tracks midpoint of the real penstock path -->
+        <text
+          v-if="pipeLengthLabel"
+          :x="pipeLengthLabel.s"
+          :y="-pipeLengthLabel.z"
+          text-anchor="middle"
+          :font-size="fontM * 0.95"
+          class="pipe-l-label"
+        >
+          pipe L {{ pipeLengthLabel.pipeM.toFixed(0) }} m
+        </text>
 
         <!-- Slope angle on each segment -->
         <text
@@ -553,15 +609,20 @@ function isBendSelected(i: number): boolean {
   pointer-events: none;
 }
 
-.tri-label.hyp {
-  fill: #8a6d3b;
-}
-
 .penstock {
   stroke: var(--accent);
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.pipe-l-label {
+  fill: #8a6d3b;
+  font-weight: 650;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: var(--canvas-bg);
+  stroke-width: 0.7px;
 }
 
 .slope-label {
