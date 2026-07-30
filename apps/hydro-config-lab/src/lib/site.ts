@@ -4,8 +4,8 @@
  * - sM = horizontal distance (plan meters along the ground map)
  * - zM = elevation (absolute meters)
  *
- * Pipe length is NOT s; it is the path length along intake → bends → turbine
- * in the s–z plane (straight run ≈ triangle hypotenuse).
+ * Pipe length is the path length along intake → bends → turbine in the s–z plane.
+ * Default layout: 50 m head, 120 m horizontal run → 130 m straight pipe.
  */
 
 export type SitePoint = {
@@ -15,134 +15,143 @@ export type SitePoint = {
   zM: number;
 };
 
-export type SiteElementKind = "intake" | "bend" | "turbine";
-
-/** Selection of a site element (bend uses index into site.bends). */
-export type SiteSelection =
-  | { kind: "intake" }
-  | { kind: "turbine" }
-  | { kind: "bend"; index: number }
-  | null;
+/** Selection: only bends are selectable for delete; intake/turbine always exist. */
+export type SiteSelection = { kind: "bend"; index: number } | null;
 
 export type Site = {
-  intake: SitePoint | null;
+  intake: SitePoint;
   /** Intermediate penstock vertices between intake and turbine (order along the run). */
   bends: SitePoint[];
-  turbine: SitePoint | null;
+  turbine: SitePoint;
 };
 
-export type ToolId = "select" | "intake" | "bend" | "turbine";
+/**
+ * Default teaching site:
+ * - Intake at s=30 m, z=50 m (50 m above turbine)
+ * - Turbine at s=150 m, z=0 m (120 m horizontal from intake)
+ * - Straight pipe L = √(120² + 50²) = 130 m
+ */
+export function defaultSite(): Site {
+  return {
+    intake: { sM: 30, zM: 50 },
+    bends: [],
+    turbine: { sM: 150, zM: 0 },
+  };
+}
 
-export function emptySite(): Site {
-  return { intake: null, bends: [], turbine: null };
+/** Coerce partial / legacy docs into a full site. */
+export function normalizeSite(raw: {
+  intake?: SitePoint | null;
+  bends?: SitePoint[];
+  turbine?: SitePoint | null;
+} | null | undefined): Site {
+  const d = defaultSite();
+  return {
+    intake: raw?.intake ?? d.intake,
+    bends: Array.isArray(raw?.bends) ? raw!.bends.map((b) => ({ ...b })) : [],
+    turbine: raw?.turbine ?? d.turbine,
+  };
 }
 
 export function cloneSite(site: Site): Site {
   return {
-    intake: site.intake ? { ...site.intake } : null,
+    intake: { ...site.intake },
     bends: site.bends.map((b) => ({ ...b })),
-    turbine: site.turbine ? { ...site.turbine } : null,
+    turbine: { ...site.turbine },
   };
 }
 
-/** Ordered profile points intake → bends → turbine (only present pieces). */
+/** Ordered profile points intake → bends → turbine. */
 export function profilePoints(site: Site): SitePoint[] {
-  const pts: SitePoint[] = [];
-  if (site.intake) pts.push(site.intake);
-  pts.push(...site.bends);
-  if (site.turbine) pts.push(site.turbine);
-  return pts;
+  return [site.intake, ...site.bends, site.turbine];
 }
 
-/** Site is ready to compile when intake and turbine are placed. */
 export function isSiteComplete(site: Site): boolean {
   return site.intake != null && site.turbine != null;
 }
 
-export function siteStatusMessage(site: Site): string {
-  if (!site.intake && !site.turbine && site.bends.length === 0) {
-    return "Clean slate — place an intake to begin.";
-  }
-  if (!site.intake) return "Place an intake (upstream diversion / headworks).";
-  if (!site.turbine) return "Place a turbine / powerhouse to complete the run.";
-  if (site.bends.length === 0) {
-    return "Straight penstock ready — optional: add bends, then refine elevations.";
-  }
-  return `Penstock with ${site.bends.length} bend${site.bends.length === 1 ? "" : "s"} — drag points to refine.`;
-}
+export type SegmentInfo = {
+  index: number;
+  from: SitePoint;
+  to: SitePoint;
+  lengthM: number;
+  /** Horizontal run of this segment (m). */
+  runM: number;
+  /** Elevation drop (positive downhill toward turbine). */
+  dropM: number;
+  /** Slope angle in degrees (0 = flat, 90 = vertical). */
+  slopeDeg: number;
+};
 
-export function getSelectedPoint(site: Site, sel: SiteSelection): SitePoint | null {
-  if (!sel) return null;
-  if (sel.kind === "intake") return site.intake;
-  if (sel.kind === "turbine") return site.turbine;
-  return site.bends[sel.index] ?? null;
-}
-
-export function setSelectedPoint(site: Site, sel: SiteSelection, point: SitePoint): Site {
-  if (!sel) return site;
-  const next = cloneSite(site);
-  if (sel.kind === "intake") {
-    next.intake = { ...point };
-  } else if (sel.kind === "turbine") {
-    next.turbine = { ...point };
-  } else if (sel.index >= 0 && sel.index < next.bends.length) {
-    next.bends[sel.index] = { ...point };
+export function segments(site: Site): SegmentInfo[] {
+  const pts = profilePoints(site);
+  const out: SegmentInfo[] = [];
+  for (let i = 1; i < pts.length; i++) {
+    const from = pts[i - 1]!;
+    const to = pts[i]!;
+    const runM = to.sM - from.sM;
+    const dropM = from.zM - to.zM;
+    const lengthM = Math.hypot(runM, dropM);
+    const slopeDeg =
+      lengthM < 1e-9 ? 0 : (Math.atan2(Math.abs(dropM), Math.abs(runM)) * 180) / Math.PI;
+    out.push({ index: i - 1, from, to, lengthM, runM, dropM, slopeDeg });
   }
-  return next;
-}
-
-export function deleteSelection(site: Site, sel: SiteSelection): { site: Site; selection: SiteSelection } {
-  if (!sel) return { site, selection: null };
-  const next = cloneSite(site);
-  if (sel.kind === "intake") {
-    next.intake = null;
-    return { site: next, selection: null };
-  }
-  if (sel.kind === "turbine") {
-    next.turbine = null;
-    return { site: next, selection: null };
-  }
-  if (sel.index >= 0 && sel.index < next.bends.length) {
-    next.bends.splice(sel.index, 1);
-  }
-  return { site: next, selection: null };
+  return out;
 }
 
 /**
- * Insert a bend. Bends stay sorted by horizontal distance s.
+ * Place a new bend at the midpoint of the longest penstock segment
+ * (or the single segment if straight). Selects the new bend.
  */
-export function addBend(site: Site, point: SitePoint): { site: Site; selection: SiteSelection } {
+export function addBendOnPenstock(site: Site): { site: Site; selection: SiteSelection } {
+  const segs = segments(site);
+  if (segs.length === 0) {
+    return { site: cloneSite(site), selection: null };
+  }
+  let best = segs[0]!;
+  for (const s of segs) {
+    if (s.lengthM > best.lengthM) best = s;
+  }
+  const mid: SitePoint = {
+    sM: (best.from.sM + best.to.sM) / 2,
+    zM: (best.from.zM + best.to.zM) / 2,
+  };
   const next = cloneSite(site);
-  next.bends.push({ ...point });
+  next.bends.push(mid);
   next.bends.sort((a, b) => a.sM - b.sM);
-  const index = next.bends.findIndex((b) => b.sM === point.sM && b.zM === point.zM);
+  const index = next.bends.findIndex(
+    (b) => Math.abs(b.sM - mid.sM) < 1e-9 && Math.abs(b.zM - mid.zM) < 1e-9,
+  );
   return {
     site: next,
     selection: { kind: "bend", index: index >= 0 ? index : next.bends.length - 1 },
   };
 }
 
-export function placeIntake(site: Site, point: SitePoint): { site: Site; selection: SiteSelection } {
+export function deleteBend(site: Site, index: number): Site {
+  if (index < 0 || index >= site.bends.length) return site;
   const next = cloneSite(site);
-  next.intake = { ...point };
-  return { site: next, selection: { kind: "intake" } };
+  next.bends.splice(index, 1);
+  return next;
 }
 
-export function placeTurbine(site: Site, point: SitePoint): { site: Site; selection: SiteSelection } {
+export function moveBend(site: Site, index: number, point: SitePoint): Site {
+  if (index < 0 || index >= site.bends.length) return site;
   const next = cloneSite(site);
-  next.turbine = { ...point };
-  return { site: next, selection: { kind: "turbine" } };
+  next.bends[index] = { ...point };
+  next.bends.sort((a, b) => a.sM - b.sM);
+  return next;
 }
 
-/** Round coords for display / form fields. */
+export function moveIntake(site: Site, point: SitePoint): Site {
+  return { ...cloneSite(site), intake: { ...point } };
+}
+
+export function moveTurbine(site: Site, point: SitePoint): Site {
+  return { ...cloneSite(site), turbine: { ...point } };
+}
+
 export function roundCoord(n: number, digits = 2): number {
   const f = 10 ** digits;
   return Math.round(n * f) / f;
-}
-
-export function selectionLabel(sel: SiteSelection): string {
-  if (!sel) return "Nothing selected";
-  if (sel.kind === "intake") return "Intake";
-  if (sel.kind === "turbine") return "Turbine";
-  return `Bend ${sel.index + 1}`;
 }

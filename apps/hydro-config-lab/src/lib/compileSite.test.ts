@@ -76,8 +76,11 @@ describe("compileSite", () => {
     turbine: { sM: 120, zM: 75 },
   };
 
-  it("fails without complete site", () => {
-    const r = compileSite({ intake: null, bends: [], turbine: null }, defaultPlantParams());
+  it("fails when intake and turbine coincide (zero length)", () => {
+    const r = compileSite(
+      { intake: { sM: 0, zM: 10 }, bends: [], turbine: { sM: 0, zM: 10 } },
+      defaultPlantParams(),
+    );
     expect(r.ok).toBe(false);
   });
 

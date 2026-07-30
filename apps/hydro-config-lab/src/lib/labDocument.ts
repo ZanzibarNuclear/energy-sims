@@ -11,7 +11,7 @@ import {
   type OperatorInputs,
   type PlantParams,
 } from "./plantParams";
-import { cloneSite, emptySite, type Site } from "./site";
+import { cloneSite, defaultSite, normalizeSite, type Site } from "./site";
 
 export const LAB_DOC_KIND = "hydro-config-lab";
 export const LAB_DOC_VERSION = 1;
@@ -66,7 +66,7 @@ export function parseImport(text: string): {
   if (isLabDocument(data)) {
     return {
       name: data.name,
-      site: cloneSite(data.site),
+      site: normalizeSite(data.site),
       params: { ...defaultPlantParams(), ...data.params },
       operator: { ...defaultOperator(), ...data.operator },
     };
@@ -158,7 +158,7 @@ export function emptyLabState(): {
 } {
   return {
     name: "Untitled site",
-    site: emptySite(),
+    site: defaultSite(),
     params: defaultPlantParams(),
     operator: defaultOperator(),
   };

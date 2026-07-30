@@ -3,7 +3,6 @@ import { computed, ref } from "vue";
 import AppMenu from "./components/AppMenu.vue";
 import ServerStatus from "./components/ServerStatus.vue";
 import SiteCanvas from "./components/SiteCanvas.vue";
-import SelectionPopover from "./components/SelectionPopover.vue";
 import PlantForm from "./components/PlantForm.vue";
 import SteadyPreview from "./components/SteadyPreview.vue";
 import TrialRunner from "./components/TrialRunner.vue";
@@ -12,18 +11,26 @@ import { emptyLabState } from "./lib/labDocument";
 import type { OperatorInputs, PlantParams } from "./lib/plantParams";
 import {
   isSiteComplete,
+  normalizeSite,
   type Site,
   type SiteSelection,
-  type ToolId,
 } from "./lib/site";
 
 type TabId = "layout" | "equipment" | "run";
 
-const tabs: { id: TabId; step: string; label: string; hint: string }[] = [
-  { id: "layout", step: "1", label: "Layout", hint: "Place intake, penstock, turbine" },
-  { id: "equipment", step: "2", label: "Equipment", hint: "Flow, pipe, losses, efficiencies" },
-  { id: "run", step: "3", label: "Run", hint: "Play simulation against the engine" },
+const tabs: { id: TabId; step: string; label: string }[] = [
+  { id: "layout", step: "1", label: "Layout" },
+  { id: "equipment", step: "2", label: "Equipment" },
+  { id: "run", step: "3", label: "Run" },
 ];
+
+const instructions: Record<TabId, string> = {
+  layout:
+    "Drag the intake and turbine to set head and run. Add bends if you want a kinked penstock; select a bend to delete it. Segment angles show slope along the pipe.",
+  equipment:
+    "Review stream flow, penstock diameter and losses, and turbine/generator efficiencies. Head and pipe length come from the layout.",
+  run: "Start the energy-sim engine and play a timed run to watch power and speed ramp.",
+};
 
 const tab = ref<TabId>("layout");
 
@@ -31,7 +38,6 @@ const initial = emptyLabState();
 const configName = ref(initial.name);
 const site = ref<Site>(initial.site);
 const selection = ref<SiteSelection>(null);
-const tool = ref<ToolId>("intake");
 const params = ref<PlantParams>(initial.params);
 const operator = ref<OperatorInputs>(initial.operator);
 
@@ -41,17 +47,11 @@ const derived = computed(() => (compiled.value.ok ? compiled.value.derived : nul
 const layoutReady = computed(() => isSiteComplete(site.value));
 
 function newSite() {
-  if (
-    (site.value.intake || site.value.turbine || site.value.bends.length) &&
-    !confirm("Discard the current site and start a clean slate?")
-  ) {
-    return;
-  }
+  if (!confirm("Reset to the default layout (intake + turbine)?")) return;
   const s = emptyLabState();
   configName.value = s.name;
   site.value = s.site;
   selection.value = null;
-  tool.value = "intake";
   params.value = s.params;
   operator.value = s.operator;
   tab.value = "layout";
@@ -64,11 +64,10 @@ function onLoad(state: {
   operator: OperatorInputs;
 }) {
   configName.value = state.name;
-  site.value = state.site;
+  site.value = normalizeSite(state.site);
   params.value = state.params;
   operator.value = state.operator;
   selection.value = null;
-  tool.value = "select";
 }
 
 function goTab(id: TabId) {
@@ -104,7 +103,6 @@ function goTab(id: TabId) {
         class="tab"
         :class="{ active: tab === t.id }"
         :aria-selected="tab === t.id"
-        :title="t.hint"
         @click="goTab(t.id)"
       >
         <span class="step">{{ t.step }}</span>
@@ -112,35 +110,17 @@ function goTab(id: TabId) {
       </button>
     </nav>
 
-    <!-- 1. Layout: grid only + selection popover -->
+    <p class="instruction" role="status">{{ instructions[tab] }}</p>
+
     <section
       v-show="tab === 'layout'"
       class="panel layout-panel"
       role="tabpanel"
       aria-label="Layout"
     >
-      <div class="canvas-host">
-        <SiteCanvas
-          v-model:site="site"
-          v-model:selection="selection"
-          v-model:tool="tool"
-        />
-        <SelectionPopover v-model:site="site" v-model:selection="selection" />
-      </div>
-      <p class="step-hint">
-        Place intake and turbine on the grid. Optional bends shape the penstock.
-        <button
-          v-if="layoutReady"
-          type="button"
-          class="link"
-          @click="goTab('equipment')"
-        >
-          Next: Equipment →
-        </button>
-      </p>
+      <SiteCanvas v-model:site="site" v-model:selection="selection" />
     </section>
 
-    <!-- 2. Equipment & stream (avoid "plant" in the tab chrome) -->
     <section
       v-show="tab === 'equipment'"
       class="panel equipment-panel"
@@ -165,18 +145,10 @@ function goTab(id: TabId) {
           <p v-if="compiled.ok === false && layoutReady" class="compile-err">
             {{ compiled.error }}
           </p>
-          <p v-if="layoutReady" class="step-hint">
-            <button type="button" class="link" @click="goTab('run')">Next: Run →</button>
-          </p>
-          <p v-else class="step-hint warn">
-            Layout is incomplete —
-            <button type="button" class="link" @click="goTab('layout')">return to Layout</button>
-          </p>
         </div>
       </div>
     </section>
 
-    <!-- 3. Run against engine -->
     <section
       v-show="tab === 'run'"
       class="panel run-panel"
@@ -200,7 +172,7 @@ function goTab(id: TabId) {
   padding: 1rem 1.25rem 2rem;
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 0.75rem;
   min-height: 100vh;
 }
 
@@ -281,6 +253,18 @@ function goTab(id: TabId) {
   color: #fff;
 }
 
+.instruction {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  font-size: 1.05rem;
+  line-height: 1.45;
+  font-weight: 500;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 10px;
+}
+
 .panel {
   flex: 1;
   display: flex;
@@ -289,40 +273,13 @@ function goTab(id: TabId) {
   min-height: 0;
 }
 
-.layout-panel .canvas-host {
-  position: relative;
-  flex: 1;
-  min-height: 28rem;
-}
-
 .layout-panel :deep(.canvas) {
-  min-height: 28rem;
+  min-height: 30rem;
   height: 100%;
 }
 
 .layout-panel :deep(.plot) {
-  min-height: 24rem;
-}
-
-.step-hint {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--muted-fg);
-}
-
-.step-hint.warn {
-  color: #b8860b;
-}
-
-.link {
-  font: inherit;
-  font-size: inherit;
-  color: var(--accent);
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 0;
+  min-height: 26rem;
 }
 
 .equipment-grid {

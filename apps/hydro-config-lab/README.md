@@ -60,8 +60,7 @@ src/
   App.vue                      # tab workflow shell
   components/
     AppMenu.vue                # ☰ save / export / import
-    SiteCanvas.vue             # Layout tab
-    SelectionPopover.vue       # point details on layout
+    SiteCanvas.vue             # Layout tab (default intake+turbine)
     PlantForm.vue              # Equipment tab
     SteadyPreview.vue
     ServerStatus.vue           # Run tab
