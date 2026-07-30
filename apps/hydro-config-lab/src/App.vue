@@ -25,8 +25,7 @@ const tabs: { id: TabId; step: string; label: string }[] = [
 ];
 
 const instructions: Record<TabId, string> = {
-  layout:
-    "Drag the intake and turbine to set head and run. Keep the penstock downhill to the turbine (bends cannot rise above the intake). Add a bend if needed; click a bend to delete it.",
+  layout: "Lay out the penstock so that it runs downhill from intake to turbine.",
   equipment:
     "Review stream flow, penstock diameter and losses, and turbine/generator efficiencies. Head and pipe length come from the layout.",
   run: "Start the energy-sim engine and play a timed run to watch power and speed ramp.",

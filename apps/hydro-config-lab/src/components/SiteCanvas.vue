@@ -186,8 +186,8 @@ const pipeLengthLabel = computed(() => {
     ps = -ps;
     pz = -pz;
   }
-  // Sit well clear of segment slope labels on the penstock.
-  const offset = Math.max(fontM.value * 3.2, 14);
+  // Offset from the path — clear of slope labels but not too far out.
+  const offset = Math.max(fontM.value * 2.2, 10);
   return {
     s: d.s + ps * offset,
     z: d.z + pz * offset,
@@ -328,7 +328,7 @@ function isBendSelected(i: number): boolean {
         <input v-model="snapToGrid" type="checkbox" />
         Snap to {{ GRID_STEP_M }} m
       </label>
-      <button type="button" class="tool" @click="onAddBend">Add a bend</button>
+      <button type="button" class="tool primary" @click="onAddBend">Add a bend</button>
       <button
         v-if="selection"
         type="button"
@@ -341,10 +341,6 @@ function isBendSelected(i: number): boolean {
 
     <p v-if="clampHint || penstockIssues.length" class="edu" role="status">
       {{ clampHint || penstockIssues[0]?.message }}
-    </p>
-    <p v-else class="edu quiet">
-      Gravity diversion: the penstock must run downhill or flat to the turbine — no high points after
-      the intake, and nothing below the turbine floor.
     </p>
 
     <div class="plot-wrap">
@@ -458,7 +454,7 @@ function isBendSelected(i: number): boolean {
           :font-size="fontM * 0.95"
           class="pipe-l-label"
         >
-          pipe L {{ pipeLengthLabel.pipeM.toFixed(0) }} m
+          Pipe L {{ pipeLengthLabel.pipeM.toFixed(0) }} m
         </text>
 
         <!-- Slope angle on each segment -->
@@ -531,7 +527,7 @@ function isBendSelected(i: number): boolean {
             :font-size="fontM * 0.9"
             class="label"
           >
-            Bend
+            B{{ i + 1 }}
           </text>
         </g>
 
@@ -614,6 +610,17 @@ function isBendSelected(i: number): boolean {
   border-color: var(--accent);
 }
 
+.tool.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.tool.primary:hover {
+  filter: brightness(1.06);
+}
+
 .tool.danger {
   color: #c44;
   border-color: color-mix(in srgb, #c44 45%, var(--border));
@@ -628,12 +635,6 @@ function isBendSelected(i: number): boolean {
   color: var(--fg);
   background: color-mix(in srgb, #c9a227 16%, var(--toolbar));
   border-bottom: 1px solid color-mix(in srgb, #c9a227 35%, var(--border));
-}
-
-.edu.quiet {
-  background: var(--toolbar);
-  color: var(--muted-fg);
-  border-bottom-color: var(--border);
 }
 
 .plot-wrap {
@@ -700,12 +701,12 @@ function isBendSelected(i: number): boolean {
 }
 
 .pipe-l-label {
-  fill: #8a6d3b;
-  font-weight: 650;
+  fill: var(--accent);
+  font-weight: 700;
   pointer-events: none;
   paint-order: stroke;
   stroke: var(--canvas-bg);
-  stroke-width: 0.7px;
+  stroke-width: 0.85px;
 }
 
 .slope-label {
