@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  constrainBendPoint,
+  constrainBendPointDetailed,
   defaultSite,
   moveBend,
   moveIntake,
@@ -22,12 +22,22 @@ describe("penstock gravity rules", () => {
     expect(issues.some((i) => i.code === "below_turbine")).toBe(true);
   });
 
-  it("clamps a bend so it cannot rise above the intake", () => {
+  it("reports uphill when raising a bend above its upstream neighbor", () => {
     const site = defaultSite();
     site.bends = [{ sM: 90, zM: 25 }];
-    const clamped = constrainBendPoint(site, 0, { sM: 90, zM: 80 });
-    expect(clamped.zM).toBeLessThanOrEqual(site.intake.zM);
-    expect(clamped.zM).toBeGreaterThanOrEqual(site.turbine.zM);
+    const r = constrainBendPointDetailed(site, 0, { sM: 90, zM: 80 });
+    expect(r.reason).toBe("uphill");
+    expect(r.message.toLowerCase()).toContain("downhill");
+    expect(r.point.zM).toBeLessThanOrEqual(site.intake.zM);
+  });
+
+  it("reports below_turbine when lowering a bend under the turbine", () => {
+    const site = defaultSite();
+    site.bends = [{ sM: 90, zM: 25 }];
+    const r = constrainBendPointDetailed(site, 0, { sM: 90, zM: -20 });
+    expect(r.reason).toBe("below_turbine");
+    expect(r.message.toLowerCase()).toContain("turbine");
+    expect(r.point.zM).toBeGreaterThanOrEqual(site.turbine.zM);
   });
 
   it("moveBend keeps downhill profile", () => {

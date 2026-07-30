@@ -138,20 +138,20 @@ export function deleteBend(site: Site, index: number): Site {
 export function moveBend(site: Site, index: number, point: SitePoint): Site {
   if (index < 0 || index >= site.bends.length) return site;
   const next = cloneSite(site);
-  next.bends[index] = constrainBendPoint(next, index, point);
+  next.bends[index] = constrainBendPointDetailed(next, index, point).point;
   next.bends.sort((a, b) => a.sM - b.sM);
   return next;
 }
 
 export function moveIntake(site: Site, point: SitePoint): Site {
   const next = cloneSite(site);
-  next.intake = constrainIntakePoint(next, point);
+  next.intake = constrainIntakePointDetailed(next, point).point;
   return next;
 }
 
 export function moveTurbine(site: Site, point: SitePoint): Site {
   const next = cloneSite(site);
-  next.turbine = constrainTurbinePoint(next, point);
+  next.turbine = constrainTurbinePointDetailed(next, point).point;
   // Keep penstock above the new turbine floor.
   next.intake = {
     ...next.intake,
@@ -223,12 +223,41 @@ export function validatePenstock(site: Site): PenstockIssue[] {
   return issues;
 }
 
+/** Why a drag was limited (one primary reason for a targeted tip). */
+export type ClampReason = "uphill" | "below_turbine" | "intake_floor" | "turbine_ceiling" | null;
+
+export type ConstrainResult = {
+  point: SitePoint;
+  reason: ClampReason;
+  message: string;
+};
+
+const MSG_UPHILL =
+  "Keep the penstock running downhill (or flat). This bend cannot rise above the point upstream of it, because gravity flow needs a continuous drop toward the turbine.";
+
+const MSG_BELOW_TURBINE =
+  "Keep the penstock at or above the turbine. A low point below the machine would pool water so it never reaches the runner.";
+
+const MSG_INTAKE_FLOOR =
+  "The intake must stay at or above every downstream point so the whole penstock still runs downhill to the turbine.";
+
+const MSG_TURBINE_CEILING =
+  "The turbine must stay at or below the last point on the penstock so the pipe still slopes (or runs flat) into the machine.";
+
 /** Clamp a candidate bend so elev is between neighbors and ≥ turbine. */
 export function constrainBendPoint(
   site: Site,
   bendIndex: number,
   point: SitePoint,
 ): SitePoint {
+  return constrainBendPointDetailed(site, bendIndex, point).point;
+}
+
+export function constrainBendPointDetailed(
+  site: Site,
+  bendIndex: number,
+  point: SitePoint,
+): ConstrainResult {
   const pts = profilePoints(site);
   // path index of this bend = 1 + bendIndex
   const pathI = 1 + bendIndex;
@@ -236,37 +265,79 @@ export function constrainBendPoint(
   const next = pts[pathI + 1] ?? site.turbine;
   const zHi = Math.min(prev.zM, site.intake.zM);
   const zLo = Math.max(next.zM, site.turbine.zM);
-  let zM = Math.min(zHi, Math.max(zLo, point.zM));
-  // Keep between neighbors horizontally when possible
+
+  let reason: ClampReason = null;
+  let message = "";
+  let zM = point.zM;
+
+  // Prefer the tip that matches what the user was trying to do.
+  if (point.zM > zHi + 1e-6) {
+    zM = zHi;
+    reason = "uphill";
+    message = MSG_UPHILL;
+  } else if (point.zM < zLo - 1e-6) {
+    zM = zLo;
+    // Below turbine floor vs below next point (still a downhill rule).
+    if (site.turbine.zM >= next.zM - 1e-9 && point.zM < site.turbine.zM - 1e-6) {
+      reason = "below_turbine";
+      message = MSG_BELOW_TURBINE;
+    } else {
+      reason = "uphill";
+      message = MSG_UPHILL;
+    }
+  } else {
+    zM = Math.min(zHi, Math.max(zLo, point.zM));
+  }
+
   const sLo = Math.min(prev.sM, next.sM);
   const sHi = Math.max(prev.sM, next.sM);
   let sM = point.sM;
   if (sHi - sLo > 1e-6) {
     sM = Math.min(sHi, Math.max(sLo, sM));
   }
-  return { sM, zM };
+  return { point: { sM, zM }, reason, message };
 }
 
 export function constrainIntakePoint(site: Site, point: SitePoint): SitePoint {
-  // Intake must stay at/above every downstream point and the turbine.
+  return constrainIntakePointDetailed(site, point).point;
+}
+
+export function constrainIntakePointDetailed(
+  site: Site,
+  point: SitePoint,
+): ConstrainResult {
   const minDownstream = Math.max(
     site.turbine.zM,
     ...site.bends.map((b) => b.zM),
   );
-  return {
-    sM: point.sM,
-    zM: Math.max(point.zM, minDownstream),
-  };
+  if (point.zM < minDownstream - 1e-6) {
+    return {
+      point: { sM: point.sM, zM: minDownstream },
+      reason: "intake_floor",
+      message: MSG_INTAKE_FLOOR,
+    };
+  }
+  return { point: { sM: point.sM, zM: point.zM }, reason: null, message: "" };
 }
 
 export function constrainTurbinePoint(site: Site, point: SitePoint): SitePoint {
-  // Turbine is the low end: not above the nearest upstream point.
+  return constrainTurbinePointDetailed(site, point).point;
+}
+
+export function constrainTurbinePointDetailed(
+  site: Site,
+  point: SitePoint,
+): ConstrainResult {
   const upstream =
     site.bends.length > 0 ? site.bends[site.bends.length - 1]! : site.intake;
-  return {
-    sM: point.sM,
-    zM: Math.min(point.zM, upstream.zM),
-  };
+  if (point.zM > upstream.zM + 1e-6) {
+    return {
+      point: { sM: point.sM, zM: upstream.zM },
+      reason: "turbine_ceiling",
+      message: MSG_TURBINE_CEILING,
+    };
+  }
+  return { point: { sM: point.sM, zM: point.zM }, reason: null, message: "" };
 }
 
 /** After bulk edits, walk intake→turbine and push elevations downhill only. */

@@ -2,14 +2,15 @@
 import { computed, ref, watch } from "vue";
 import {
   addBendOnPenstock,
-  constrainBendPoint,
+  constrainBendPointDetailed,
+  constrainIntakePointDetailed,
+  constrainTurbinePointDetailed,
   deleteBend,
   moveBend,
   moveIntake,
   moveTurbine,
   profilePoints,
   segments,
-  validatePenstock,
   type Site,
   type SiteSelection,
 } from "../lib/site";
@@ -57,8 +58,6 @@ const elevOriginLive = computed(() => elevationOriginZ(props.site.turbine.zM));
 const elevOrigin = computed(() =>
   dragElevOrigin.value != null ? dragElevOrigin.value : elevOriginLive.value,
 );
-
-const penstockIssues = computed(() => validatePenstock(props.site));
 
 function refitView() {
   view.value = fitViewToPoints(
@@ -248,36 +247,24 @@ function onPointerDown(target: DragTarget, ev: PointerEvent) {
   svgRef.value?.setPointerCapture?.(ev.pointerId);
 }
 
-function noteClamp(requested: { sM: number; zM: number }, applied: { sM: number; zM: number }) {
-  const elevBlocked = Math.abs(requested.zM - applied.zM) > 0.05;
-  const sBlocked = Math.abs(requested.sM - applied.sM) > 0.05;
-  if (!elevBlocked && !sBlocked) {
-    clampHint.value = "";
-    return;
-  }
-  clampHint.value =
-    "Penstock tip: keep the pipe downhill (or flat) from intake to turbine. " +
-    "Bends cannot rise above the previous point or the intake, and nothing can sit below the turbine, " +
-    "because an uphill pocket traps air and stalls gravity flow.";
-}
-
 function onPointerMove(ev: PointerEvent) {
   if (!dragging.value) return;
   const world = clientToWorld(ev);
   if (!world) return;
   const t = dragging.value;
   if (t.kind === "intake") {
-    const site = moveIntake(props.site, world);
-    noteClamp(world, site.intake);
-    emit("update:site", site);
+    const result = constrainIntakePointDetailed(props.site, world);
+    clampHint.value = result.message;
+    emit("update:site", moveIntake(props.site, world));
   } else if (t.kind === "turbine") {
-    const site = moveTurbine(props.site, world);
-    noteClamp(world, site.turbine);
-    emit("update:site", site);
+    const result = constrainTurbinePointDetailed(props.site, world);
+    clampHint.value = result.message;
+    emit("update:site", moveTurbine(props.site, world));
   } else {
-    const applied = constrainBendPoint(props.site, t.index, world);
-    noteClamp(world, applied);
+    const result = constrainBendPointDetailed(props.site, t.index, world);
+    clampHint.value = result.message;
     const site = moveBend(props.site, t.index, world);
+    const applied = result.point;
     const idx = site.bends.findIndex(
       (b) => Math.abs(b.sM - applied.sM) < 1e-6 && Math.abs(b.zM - applied.zM) < 1e-6,
     );
@@ -339,9 +326,7 @@ function isBendSelected(i: number): boolean {
       </button>
     </header>
 
-    <p v-if="clampHint || penstockIssues.length" class="edu" role="status">
-      {{ clampHint || penstockIssues[0]?.message }}
-    </p>
+    <p v-if="clampHint" class="edu" role="status">{{ clampHint }}</p>
 
     <div class="plot-wrap">
       <svg
