@@ -324,9 +324,9 @@ function isBendSelected(i: number): boolean {
 <template>
   <section class="canvas" aria-label="Site layout">
     <header class="toolbar">
-      <label class="snap" title="Snap drag to 10 m grid">
+      <label class="snap" title="Snap drag to the grid">
         <input v-model="snapToGrid" type="checkbox" />
-        Snap to {{ GRID_STEP_M }} m
+        Snap to grid
       </label>
       <button type="button" class="tool primary" @click="onAddBend">Add a bend</button>
       <button
