@@ -8,7 +8,7 @@ Rust, headless-first: hydropower and a local station grid in Stage 1, with room 
 
 ## Status
 
-**Stage 1 engine implemented** on branch `feat/stage1-engine` (local commits, not pushed). Hydro physics, ramps, station grid, CLI, file packages, REST + WebSocket server, JS client, optional WASM. See [docs/design.md](docs/design.md).
+**Stage 1 engine implemented** (hydro physics, ramps, station grid, CLI, file packages, REST + WebSocket server, JS client, optional WASM). Architecture: [docs/design.md](docs/design.md). Next product work: interactive **hydro config lab** — [docs/hydro-config-lab.md](docs/hydro-config-lab.md) · [docs/plans/](docs/plans/).
 
 ## Quick start
 
@@ -44,34 +44,41 @@ energy-sims/
     energy-sim-core/         # physics and types
     energy-sim-runtime/      # sessions, ramps, grid, history
     energy-sim-cli/          # headless operator (bin: energy-sim)
+    energy-sim-server/       # REST + WebSocket
+    energy-sim-wasm/         # optional embed path
+  clients/js/                # thin browser client
   fixtures/                  # example plant + load configs (JSON)
   examples/                  # sample runs / export samples
   docs/
-    design.md                # architecture and PR plan
-    hydro-physics.md         # equations (stub → PR2)
-    station-grid.md          # bus / loads (stub → PR4)
-    api.md                   # library, CLI, HTTP (stub → PR5/PR7)
+    design.md                # architecture (Stage 1 complete)
+    hydro-physics.md         # equations and parameters
+    station-grid.md          # bus / loads
+    api.md                   # library, CLI, HTTP / WS
+    hydro-config-lab.md      # interactive config lab design
+    plans/                   # what to build next
 ```
 
-Also in the workspace: `energy-sim-server` (REST + WebSocket) and optional `energy-sim-wasm` (`wasm-pack build crates/energy-sim-wasm --target web`).
+Optional WASM: `wasm-pack build crates/energy-sim-wasm --target web`.
 
-## Stage 1 (planned)
+## Stage 1 (shipped)
 
 - Hydro power from \(P = \eta \rho g Q H_\mathrm{net}\) with configurable head, flow, penstock, losses, efficiency
-- **Ramp-up / ramp-down** (e.g. turbine spin-up) so graphs show transitions
+- **Ramp-up / ramp-down** (turbine spin-up/spin-down) so graphs show transitions
 - Session lifecycle: start / stop / interval / tick (sim time in **seconds**)
 - Station grid: sources feed a bus, loads draw, **report-only** brownout/shortage
 - Operational data: JSON checkpoint, **CSV** series, JSONL events
-- Headless **CLI**; later **REST + WebSocket** service for game control room
+- Headless **CLI** and **REST + WebSocket** service for remote hosts
 
 ## Docs
 
 | Doc | Description |
 | --- | --- |
-| [docs/design.md](docs/design.md) | Architecture, goals, API sketches, PR plan |
+| [docs/design.md](docs/design.md) | Architecture and Stage 1 design |
 | [docs/hydro-physics.md](docs/hydro-physics.md) | Hydro equations and parameters |
 | [docs/station-grid.md](docs/station-grid.md) | Station bus and balance semantics |
 | [docs/api.md](docs/api.md) | Library, CLI, and remote API surface |
+| [docs/hydro-config-lab.md](docs/hydro-config-lab.md) | Config lab product design (next) |
+| [docs/plans/](docs/plans/) | Implementation plans |
 
 ## License
 
