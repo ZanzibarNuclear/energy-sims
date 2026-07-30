@@ -162,6 +162,7 @@ sims/energy-sims/              # https://github.com/ZanzibarNuclear/energy-sims
 │   ├── energy-sim-server/     # REST + WebSocket remote API
 │   └── energy-sim-wasm/       # optional embed path
 ├── clients/js/                # thin REST + WebSocket client for hosts
+├── apps/hydro-config-lab/     # Vue clean-slate config prototyping UI
 ├── fixtures/                  # example plant + load configs (JSON)
 └── examples/                  # sample runs, export samples
 ```

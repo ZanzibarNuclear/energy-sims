@@ -30,15 +30,15 @@ The Stage 1 base is solid. Recommended order:
 
 | Priority | Item | Why now / why later |
 | --- | --- | --- |
-| **P0** | **Hydro config lab UI** | Highest leverage for tuning Clearwater Diversion and for holo-reader trial design. Uses the production engine. Separate plan: [hydro-config-lab.md](hydro-config-lab.md). |
-| **P1** | **Automated server + CLI smoke tests** | Prevents regression on the integration surfaces hosts actually call. Cheap relative to a new product surface. |
-| **P2** | **Game control-room client (PR8 remainder)** | Wire Atomic Adventures console to `energy-sim-server` via `clients/js/` (or a typed port). Needed for live campus play; can proceed in parallel with the lab. |
-| **P3** | **Database session store** | Files + in-memory server sessions are enough for single-author lab and local game alpha. Introduce SQLite/Postgres when multi-session, multi-player, or long-lived remote ops need queryable history. **Defer.** |
+| **P0** | **Hydro config lab UI** | Highest leverage for tuning plants and holo-reader trial design. Clean-slate construction against the production engine. Plan: [hydro-config-lab.md](hydro-config-lab.md). |
+| **P1** | **Game control-room client (PR8 remainder)** | **After** config prototyping settles the engine and clears latent issues. Do not parallel aggressively. |
+| **P2** | **Targeted automated tests** | Only where they prevent real regressions (e.g. lab compile math, flaky host paths that actually break). Not a focus during early lab UI. |
+| **P3** | **Database session store** | Files + in-memory server sessions are enough for single-author lab and local game alpha. **Defer.** |
 | Later | Component catalog resolver | Sponsorship / shop UX; optional `packageId` hooks already allowed |
 | Later | Multi-source plants (solar, battery, fission, fusion) | Same bus model; only after hydro + lab + game path feel good |
 | Later | Auto load-shed policies | Gameplay polish beyond report-only brownout |
 
-**Conclusion:** Nothing more pressing on the engine core than “use it.” Database can wait. The config lab is the next add-on; light test hardening is the only nearby engine chore worth parallelizing.
+**Conclusion:** Nothing more pressing on the engine core than **using it via the config lab**. Game wiring and database wait. Tests only when they protect real regressions.
 
 ---
 

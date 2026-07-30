@@ -47,6 +47,7 @@ energy-sims/
     energy-sim-server/       # REST + WebSocket
     energy-sim-wasm/         # optional embed path
   clients/js/                # thin browser client
+  apps/hydro-config-lab/     # Vue config lab (prototyping UI)
   fixtures/                  # example plant + load configs (JSON)
   examples/                  # sample runs / export samples
   docs/
@@ -59,6 +60,18 @@ energy-sims/
 ```
 
 Optional WASM: `wasm-pack build crates/energy-sim-wasm --target web`.
+
+### Hydro config lab (Vue)
+
+```sh
+# terminal 1 — engine
+cargo run -p energy-sim-server -- --listen 127.0.0.1:8787
+
+# terminal 2 — UI
+cd apps/hydro-config-lab && npm install && npm run dev
+```
+
+See [apps/hydro-config-lab/README.md](apps/hydro-config-lab/README.md).
 
 ## Stage 1 (shipped)
 

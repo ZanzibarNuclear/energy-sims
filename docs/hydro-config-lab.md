@@ -46,20 +46,20 @@ This is a **designer / educator / developer tool** first. A polished in-lesson U
 
 ### Goals
 
-- Author a named plant (and optional station grid) configuration.
-- Edit **penstock profile** on a 2D grid: **x = distance along the ground**, **y = elevation**.
+- **Clean-slate site construction** — start empty (or nearly empty); the user places an **intake**, lays the **penstock** path, positions the **turbine / powerhouse**, then fills remaining plant properties.
+- Edit layout on a 2D grid: **x = distance along the ground**, **y = elevation**.
 - Set stream flow, efficiencies, diameter, dynamics, operator inputs (gate, debris, leakage, online).
-- Optionally attach station loads and toggle them during a trial.
 - **Save / load / rename** configurations (local first).
-- **Submit** config to the engine, run intervals or live ticks, and **watch** power, head breakdown, spin-up, grid margin, brownout.
+- **Submit** config to the engine, run intervals or live ticks, and **watch** power, head breakdown, spin-up, and (when relevant) grid margin / brownout.
 - Export standard plant/session JSON usable by CLI, server, and game fixtures.
-- Support comparison questions: more head, more bends, drought flow, heavy EV load, etc.
+- Support comparison questions: more head, more bends, drought flow, etc.
 
 ### Non-goals (v1)
 
 - Multi-user cloud account system or production auth.
 - Database-backed multi-session server (files / localStorage / download JSON are enough).
-- Replacing the Atomic Adventures control room (that remains a game host client).
+- Replacing the Atomic Adventures control room (that remains a game host client; **wire the game only after config prototyping settles the engine**).
+- Prefilling the lab as a finished Clearwater clone on first open (fixtures may be **import** options, not the default canvas).
 - Deep CFD or free-form terrain sculpting beyond a polyline profile.
 - Shipping inside the holo-reader on the first cut (research first).
 
@@ -76,6 +76,9 @@ This is a **designer / educator / developer tool** first. A polished in-lesson U
 | L5 | **Not Electron** | Heavy Chromium bundle; no advantage over Tauri or plain web for this tool. |
 | L6 | **Named configs as first-class** | Iteration is the product: save “clearwater-steep”, “drought”, “extra-bends”. |
 | L7 | **Keep welcome sim as-is** | Inspiration only; lab does not need to match its slider UX or numbers. |
+| L8 | **Clean-slate construction UI** | User builds the site: drop intake → lay penstock → place turbine; not a wall of sliders on a preloaded plant. |
+| L9 | **Game wiring after prototyping** | Use the lab to shake out config/engine issues before control-room integration. |
+| L10 | **Tests only when they prevent real regressions** | Prefer compiler unit tests and engine-backed checks; no tests for show. |
 
 ### Platform choice: web vs Tauri vs Electron
 
@@ -123,40 +126,48 @@ flowchart LR
 
 ### Primary loop
 
-1. **Open or create** a named configuration (e.g. “Clearwater Diversion — steep”).
-2. **Edit profile** and properties until the steady-state preview (instant eval) looks right.
-3. **Run a trial** (session start + advance/tick) and watch ramps, power, and grid.
-4. **Tweak** one variable (extra bend, lower stream flow, more load) and re-run.
-5. **Save** and/or **export** JSON for the game or fixtures.
+1. **New configuration** — empty site (or resume a named save). Optional **import** of an existing plant JSON is available but not forced.
+2. **Build the plant on the grid** — place **intake**, lay **penstock** segments / bends, place **turbine**.
+3. **Fill remaining properties** (flow, diameter, efficiencies, dynamics, operator inputs) as needed.
+4. **Steady preview** when geometry is complete enough to compile a plant.
+5. **Run a trial** (session start + advance/tick) and watch ramps and power.
+6. **Tweak** (more elevation, more bends, lower stream flow) and re-run.
+7. **Save** and/or **export** JSON for the game or fixtures.
 
 ### Layout sketch
 
 ```text
 ┌──────────────────────────────────────────────────────────────────┐
-│  Config: [ name ▼ ]   [Save] [Save as…] [Export JSON] [Import]   │
+│  Config: [Untitled ▼]  [New] [Save] [Export] [Import…]  engine ● │
 ├─────────────────────────────┬────────────────────────────────────┤
-│  Profile editor             │  Properties                        │
-│  y elevation (m)            │  Stream flow, diameter, η, …       │
-│  ▲                          │  Dynamics ramp times               │
-│  │   * intake               │  Operator: gate / debris / leak    │
-│  │    \                     │  Grid loads (optional)             │
-│  │     \____* turbine       │                                    │
-│  └──────────────────► x     │  Live preview (steady eval)        │
-│     ground distance (m)     │  P_e, H_net, warnings              │
+│  Site canvas (clean slate)  │  Context / properties              │
+│  y elevation (m)            │  Selected: Intake | Bend | Turbine │
+│  ▲                          │  Stream, diameter, η, dynamics…    │
+│  │                          │  (empty until pieces exist)        │
+│  │   (place intake…)        │                                    │
+│  │                          │  Live preview (when compilable)    │
+│  └──────────────────► x     │  P_e, H_net, warnings              │
+│     ground distance (m)     │                                    │
+│  Tools: Intake · Penstock · Turbine · Select                     │
 ├─────────────────────────────┴────────────────────────────────────┤
-│  Trial: [▶ Run 120s] [Live tick] [Stop]   status · sim time      │
-│  Charts: power / speed / margin vs time                          │
-│  Snapshot strip: gen · load · margin · gridStatus · brownout     │
+│  Trial: [▶ Run] [Stop]   (enabled once plant compiles)           │
+│  Charts + snapshot strip                                         │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-### Profile editor (x–y grid)
+### Site construction (x–y grid) — clean slate
 
-**Model (UI):** ordered control points `(distanceAlongGroundM, elevationM)`.
+The default experience is **constructive**, not “edit a preloaded plant.”
 
-- First point = intake (or weir / diversion).
-- Last point = turbine / powerhouse.
-- Intermediate points = bends / grade breaks.
+| Piece | Role |
+| --- | --- |
+| **Intake** | Upstream diversion / headworks. Sets the high elevation reference. |
+| **Penstock path** | Ordered intermediate points (bends / grade breaks) between intake and turbine. |
+| **Turbine / powerhouse** | Downstream plant. Sets low elevation; ends the penstock. |
+
+**Model (UI):** typed site elements on the plane `(distanceAlongGroundM, elevationM)`, not an anonymous point list only. Under the hood they still compile to ordered profile points + plant fields.
+
+**Minimum complete plant:** intake + turbine (straight penstock). Intermediate bends are optional.
 
 **Derived plant fields (compile step):**
 
@@ -169,20 +180,23 @@ flowchart LR
 
 Authors can still **override** compiled values (advanced panel) so the lab never blocks hand-tuned JSON.
 
-**Interactions:** click to add point; drag to move; delete selected; snap optional; show derived head/length/K live; optional “ideal teaching” toggle (force \(f=0\), \(K=0\)).
+**Interactions:** tool palette (place intake, place turbine, add bend, select/move/delete); show derived head/length/K when the site is complete enough; optional “ideal teaching” losses (force \(f=0\), \(K=0\)).
+
+**Import path:** loading `fixtures/plants/*.json` (or any plant file) may **reconstruct** a simple two- or three-point profile from gross head/length for editing—or open properties only if geometry is under-specified. First open of the app remains a blank canvas.
 
 ### Configuration properties
 
-Expose the Stage 1 plant + operator + optional grid surface already documented in [hydro-physics.md](hydro-physics.md) and [station-grid.md](station-grid.md):
+Expose Stage 1 plant + operator fields from [hydro-physics.md](hydro-physics.md). Prefer **contextual panels** for the selected site element plus a plant-wide section for stream/efficiency/dynamics.
 
 - Stream available flow  
-- Diameter, friction factor (with sensible defaults)  
+- Diameter, friction factor (sensible defaults once a penstock exists)  
 - Turbine / generator efficiency, design/safe flow, rated kW, design rpm  
 - Ramp times  
 - Operator: gate, debris, leakage, online  
-- Grid: load list, drawing state, brownout threshold  
 
-Prefer **clear numbers and units** over pure sliders for precision; sliders optional for exploratory ranges (welcome-style) where they help intuition.
+**Station grid / loads:** not part of the default clean-slate canvas. Add later only if trial work needs brownout storytelling; until then keep the lab focused on building and running the **plant**.
+
+Prefer **clear numbers and units** over pure sliders for precision; sliders optional where they help intuition.
 
 ### Trials
 
@@ -299,12 +313,14 @@ The lab intentionally exposes **more** knobs than a player lesson. Part of the w
 
 ## Testing strategy (lab)
 
-| Kind | Intent |
+Write tests only when they **prevent real regressions**, not for coverage theater.
+
+| Kind | When it earns its keep |
 | --- | --- |
-| Unit | `compileProfile`: head, path length, bend K from known polylines |
-| Unit | Config round-trip: lab model ↔ plant JSON |
-| Component / e2e (optional) | Playwright: load fixture, run trial, chart updates |
-| Manual | Compare lab export vs `energy-sim hydro eval` and CLI session CSV |
+| Unit | `compileProfile` / site→plant: head, path length, bend K from known layouts (easy to get wrong) |
+| Unit | Config round-trip: lab site model ↔ plant JSON |
+| Manual | Export → `energy-sim hydro eval` / `session run` while iterating UX |
+| E2E | Only if UI workflows start breaking repeatedly |
 
 Engine correctness remains owned by Rust tests; the lab must not invent alternate physics.
 
@@ -321,12 +337,16 @@ Engine correctness remains owned by Rust tests; the lab must not invent alternat
 
 ---
 
-## Open questions
+## Resolved product questions
 
-1. **Default delivery:** browser-only MVP confirmed? (Recommended yes.)  
-2. **Profile fidelity:** is segment polyline enough, or do we need freehand curves? (Recommend polyline.)  
-3. **Should compiled profile fields be written back into exported plant JSON only, or also preserved as editable `profile` metadata?** (Recommend preserve under optional metadata so re-open restores points.)  
-4. **Station grid in v1 or plant-only first?** (Recommend plant + optional simple load toggles early—brownout is half the teaching story.)
+| # | Question | Decision |
+| --- | --- | --- |
+| 1 | Default delivery | **Browser-only MVP** (Vue + Vite + local server). Tauri optional later. |
+| 2 | Profile fidelity | **Segment polyline** (intake, bends, turbine)—not freehand curves. |
+| 3 | Preserve geometry on save | **Yes** — keep editable site/profile metadata so reopen restores the canvas; export still emits valid plant JSON. |
+| 4 | Default starting experience | **Clean slate construction** — place intake, lay penstock, place turbine. Not a preloaded station or slider wall. Fixtures are optional import. Grid/loads deferred until plant prototyping needs them. |
+| 5 | Game control-room wiring | **After** config prototyping has shaken out the engine. |
+| 6 | Automated tests | **Meaningful only** — protect compile/export math and critical regressions; no tests for show. |
 
 ---
 
