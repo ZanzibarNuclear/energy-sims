@@ -9,7 +9,7 @@ import {
   type OperatorInputs,
   type PlantParams,
 } from "./plantParams";
-import { cloneSite, defaultSite, normalizeSite, type Site } from "./site";
+import { defaultSite, normalizeSite, type Site } from "./site";
 
 export const LAB_DOC_KIND = "hydro-config-lab";
 export const LAB_DOC_VERSION = 1;
@@ -32,6 +32,14 @@ export type LabState = {
   operator: OperatorInputs;
 };
 
+/**
+ * Deep clone plain data. Avoid structuredClone: Vue reactive proxies throw
+ * DataCloneError when saved from the UI.
+ */
+function plainClone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 export function createLabDocument(
   name: string,
   site: Site,
@@ -44,9 +52,9 @@ export function createLabDocument(
     kind: LAB_DOC_KIND,
     name: name.trim() || "Untitled site",
     savedAt,
-    site: cloneSite(site),
-    params: structuredClone(params),
-    operator: structuredClone(operator),
+    site: plainClone(site),
+    params: plainClone(params),
+    operator: plainClone(operator),
   };
 }
 
