@@ -7,7 +7,7 @@ Plan: [`docs/plans/hydro-config-lab.md`](../../docs/plans/hydro-config-lab.md)
 
 ## Status
 
-**Lab-PR5 complete (PR1–PR5)** — Clean-slate build → compile → save/export → engine trials with ramp charts.  
+**Workflow UI** — three tabs: **Layout** → **Equipment** → **Run**. File actions in the ☰ menu.  
 Paused before station loads (Lab-PR6).
 
 ## Prerequisites
@@ -57,31 +57,23 @@ VITE_ENERGY_SIM_URL=http://127.0.0.1:8787 npm run dev
 
 ```text
 src/
-  App.vue
+  App.vue                      # tab workflow shell
   components/
-    ServerStatus.vue
-    ConfigToolbar.vue          # save / export / import
-    SiteCanvas.vue             # construction tools + SVG plot
-    SelectionPanel.vue
-    PlantForm.vue
+    AppMenu.vue                # ☰ save / export / import
+    SiteCanvas.vue             # Layout tab
+    SelectionPopover.vue       # point details on layout
+    PlantForm.vue              # Equipment tab
     SteadyPreview.vue
+    ServerStatus.vue           # Run tab
     TrialRunner.vue
     SeriesChart.vue
-  lib/
-    site.ts
-    compileSite.ts             # geometry → plant (+ vitest)
-    plantParams.ts
-    labDocument.ts
-    configStore.ts             # localStorage
-    trialTypes.ts
-    energySimClient.ts
+  lib/ …
 ```
 
-### Suggested manual check (review)
+### Workflow
 
-1. Start server + `npm run dev`
-2. Place intake high, turbine lower; optional bend
-3. Confirm steady preview target kW
-4. Save config; reload browser; open saved
-5. Export plant → `cargo run -p energy-sim-cli -- hydro eval --config …`
-6. Run spin-up trial; confirm power curve rises; Stop for spin-down
+1. **Layout** — place intake / penstock / turbine on the grid  
+2. **Equipment** — stream flow, diameter, friction, η, operator; steady preview  
+3. **Run** — engine status, ▶ Play / ⏹ Stop, power & speed charts  
+
+File menu (☰): New, Save, Export plant/lab JSON, Import.

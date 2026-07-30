@@ -66,8 +66,12 @@ function opBool(key: keyof OperatorInputs, value: boolean, operator: OperatorInp
 
 <template>
   <div class="plant-form">
-    <h2>Plant</h2>
-    <p v-if="!complete" class="hint">Geometry fields unlock after intake + turbine are placed.</p>
+    <h2>Equipment &amp; stream</h2>
+    <p class="lede">
+      Flow, penstock pipe, losses, and machine efficiencies. Layout (head / length) comes from the
+      site tab.
+    </p>
+    <p v-if="!complete" class="hint">Complete the site layout (intake + turbine) for derived geometry.</p>
 
     <div v-if="derived" class="derived">
       <h3>Derived geometry</h3>
@@ -453,9 +457,16 @@ function opBool(key: keyof OperatorInputs, value: boolean, operator: OperatorInp
 
 <style scoped>
 .plant-form h2 {
-  margin: 0 0 0.5rem;
-  font-size: 0.95rem;
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
   font-weight: 650;
+}
+
+.lede {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--muted-fg);
 }
 
 .plant-form h3 {

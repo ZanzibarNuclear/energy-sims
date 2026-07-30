@@ -1,6 +1,6 @@
 # Plan: Hydro Config Lab
 
-**Status:** Lab-PR1–PR5 complete — pause for review (before station loads)  
+**Status:** Lab-PR1–PR5 + tab workflow UI — pause before station loads  
 **Date:** 2026-07-30  
 **Design:** [../hydro-config-lab.md](../hydro-config-lab.md)  
 **Depends on:** Stage 1 engine (shipped) — server + plant/session JSON  

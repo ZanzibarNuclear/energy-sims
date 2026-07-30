@@ -178,9 +178,9 @@ async function stopTrial() {
 </script>
 
 <template>
-  <section class="trial" aria-label="Trial runner">
+  <section class="trial" aria-label="Run simulation">
     <div class="trial-bar">
-      <h2>Trial</h2>
+      <h2>Simulate</h2>
       <label class="field-inline">
         Duration
         <select v-model.number="durationSecs" :disabled="running">
@@ -199,7 +199,7 @@ async function stopTrial() {
         :disabled="!enabled || running"
         @click="runTrial"
       >
-        {{ running ? "Running…" : "Run" }}
+        {{ running ? "Running…" : "▶ Play" }}
       </button>
       <button
         type="button"
@@ -207,12 +207,13 @@ async function stopTrial() {
         :disabled="!liveSessionId || running"
         @click="stopTrial"
       >
-        Stop (spin-down)
+        ⏹ Stop
       </button>
     </div>
 
     <p v-if="!enabled" class="placeholder">
-      Place intake and turbine, then run a trial against <code>energy-sim-server</code>.
+      Finish the site layout (intake + turbine) on the Layout tab, then play a run against
+      <code>energy-sim-server</code>.
     </p>
     <p v-else-if="error" class="err">{{ error }}</p>
 
