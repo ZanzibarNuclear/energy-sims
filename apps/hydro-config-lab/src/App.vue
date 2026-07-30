@@ -4,6 +4,7 @@ import AppMenu from "./components/AppMenu.vue";
 import ServerStatus from "./components/ServerStatus.vue";
 import SiteCanvas from "./components/SiteCanvas.vue";
 import PlantForm from "./components/PlantForm.vue";
+import PowerEquation from "./components/PowerEquation.vue";
 import SteadyPreview from "./components/SteadyPreview.vue";
 import TrialRunner from "./components/TrialRunner.vue";
 import { compileSite } from "./lib/compileSite";
@@ -27,7 +28,8 @@ const tabs: { id: TabId; step: string; label: string }[] = [
 
 const instructions: Record<TabId, string> = {
   layout: "Lay out the penstock so that it runs downhill from intake to turbine.",
-  equipment: "Tune stream, pipe, turbine, generator, and operator settings. Head and length stay from Layout.",
+  equipment:
+    "Set intake flow, pipe, turbine, and generator. Head and length stay from Layout. See the power equation below.",
   run: "Start the energy-sim engine and play a timed run to watch power and speed ramp.",
 };
 
@@ -169,6 +171,7 @@ function goTab(id: TabId) {
           </p>
         </div>
       </div>
+      <PowerEquation :params="params" :operator="operator" :derived="derived" />
     </section>
 
     <section

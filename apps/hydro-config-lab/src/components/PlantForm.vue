@@ -12,21 +12,21 @@ const emit = defineEmits<{
   "update:operator": [OperatorInputs];
 }>();
 
-type SectionId = "stream" | "penstock" | "turbine" | "generator" | "operator";
+type SectionId = "config" | "intake" | "penstock" | "turbine" | "generator";
 
 const sections: {
   id: SectionId;
   label: string;
   blurb: string;
 }[] = [
-  { id: "stream", label: "Stream", blurb: "Available flow" },
-  { id: "penstock", label: "Penstock", blurb: "Pipe size & losses" },
-  { id: "turbine", label: "Turbine", blurb: "η, flow, ramps" },
-  { id: "generator", label: "Generator", blurb: "η, nameplate" },
-  { id: "operator", label: "Operator", blurb: "Gate, debris, online" },
+  { id: "config", label: "Config", blurb: "Name metadata for this site" },
+  { id: "intake", label: "Intake", blurb: "Flow into the penstock" },
+  { id: "penstock", label: "Penstock", blurb: "Pipe size, friction, leakage" },
+  { id: "turbine", label: "Turbine", blurb: "η, flow limits, gate, ramps" },
+  { id: "generator", label: "Generator", blurb: "η and nameplate cap" },
 ];
 
-const active = ref<SectionId>("stream");
+const active = ref<SectionId>("intake");
 
 const activeMeta = computed(() => sections.find((s) => s.id === active.value)!);
 
@@ -43,7 +43,6 @@ function setNum(path: string[], raw: string) {
     cur = cur[path[i]!] as Record<string, unknown>;
   }
   cur[path[path.length - 1]!] = n;
-  // Geometry always comes from Layout — never carry override flags.
   next.penstock.overrideHead = false;
   next.penstock.overrideLength = false;
   next.penstock.overrideMinorLoss = false;
@@ -63,27 +62,24 @@ function setStr(path: string[], raw: string) {
 function setOpNum(key: keyof OperatorInputs, raw: string) {
   const n = Number(raw);
   if (!Number.isFinite(n) && raw !== "") return;
-  emit("update:operator", { ...props.operator, [key]: n });
-}
-
-function setOpBool(key: keyof OperatorInputs, value: boolean) {
-  emit("update:operator", { ...props.operator, [key]: value });
+  // Online is session lifecycle (Run tab), not a hardware setting.
+  emit("update:operator", { ...props.operator, [key]: n, online: true });
 }
 
 function summary(id: SectionId): string {
   const p = props.params;
   const o = props.operator;
   switch (id) {
-    case "stream":
-      return `${p.stream.availableFlowM3s} m³/s`;
+    case "config":
+      return p.id || "—";
+    case "intake":
+      return `${p.stream.availableFlowM3s} m³/s · debris ${o.debrisClogFraction}`;
     case "penstock":
-      return `Ø ${p.penstock.diameterM} m · f ${p.penstock.frictionFactor}`;
+      return `Ø ${p.penstock.diameterM} m · leak ${o.leakageFraction}`;
     case "turbine":
-      return `η ${p.turbine.efficiency} · ${p.turbine.designFlowM3s} m³/s`;
+      return `η ${p.turbine.efficiency} · gate ${o.gateOpening}`;
     case "generator":
       return `η ${p.generator.efficiency} · ${p.generator.ratedPowerKw} kW`;
-    case "operator":
-      return o.online ? `gate ${o.gateOpening}` : "offline";
   }
 }
 </script>
@@ -110,19 +106,9 @@ function summary(id: SectionId): string {
         <p>{{ activeMeta.blurb }}</p>
       </header>
 
-      <!-- Stream -->
-      <div v-if="active === 'stream'" class="fields">
-        <label class="field">
-          <span>Available flow (m³/s)</span>
-          <input
-            type="number"
-            step="0.001"
-            min="0"
-            :value="params.stream.availableFlowM3s"
-            @change="setNum(['stream', 'availableFlowM3s'], ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-        <label class="field">
+      <!-- Config metadata -->
+      <div v-if="active === 'config'" class="fields">
+        <label class="field wide">
           <span>Config id</span>
           <input
             type="text"
@@ -138,9 +124,41 @@ function summary(id: SectionId): string {
             @change="setStr(['label'], ($event.target as HTMLInputElement).value)"
           />
         </label>
+        <p class="note">
+          Identifies this configuration in saves and engine plant JSON. Not a physical component.
+        </p>
       </div>
 
-      <!-- Penstock (no geometry overrides — head/length from Layout) -->
+      <!-- Intake -->
+      <div v-else-if="active === 'intake'" class="fields">
+        <label class="field">
+          <span>Intake flow available (m³/s)</span>
+          <input
+            type="number"
+            step="0.001"
+            min="0"
+            :value="params.stream.availableFlowM3s"
+            @change="setNum(['stream', 'availableFlowM3s'], ($event.target as HTMLInputElement).value)"
+          />
+        </label>
+        <label class="field">
+          <span>Debris / screen clog (0–1)</span>
+          <input
+            type="number"
+            step="0.05"
+            min="0"
+            max="1"
+            :value="operator.debrisClogFraction"
+            @change="setOpNum('debrisClogFraction', ($event.target as HTMLInputElement).value)"
+          />
+        </label>
+        <p class="note">
+          Flow into the intake (not the whole creek). Debris reduces capture and adds intake head
+          loss at the trash rack / screen.
+        </p>
+      </div>
+
+      <!-- Penstock -->
       <div v-else-if="active === 'penstock'" class="fields">
         <label class="field">
           <span>Diameter (m)</span>
@@ -165,7 +183,7 @@ function summary(id: SectionId): string {
           />
         </label>
         <label class="field">
-          <span>Base minor K</span>
+          <span>Base minor K (entrance)</span>
           <input
             type="number"
             step="0.05"
@@ -179,9 +197,20 @@ function summary(id: SectionId): string {
             "
           />
         </label>
+        <label class="field">
+          <span>Leakage (0–1)</span>
+          <input
+            type="number"
+            step="0.05"
+            min="0"
+            max="1"
+            :value="operator.leakageFraction"
+            @change="setOpNum('leakageFraction', ($event.target as HTMLInputElement).value)"
+          />
+        </label>
         <p class="note">
-          Head, pipe length, and bend losses come from the Layout tab. Base K is entrance/fittings
-          only; bends add more automatically.
+          Head and pipe length come from Layout. Each bend adds minor-loss K from its turn angle
+          (no per-bend editor). Leakage drops flow before the turbine, not head.
         </p>
       </div>
 
@@ -196,6 +225,17 @@ function summary(id: SectionId): string {
             max="1"
             :value="params.turbine.efficiency"
             @change="setNum(['turbine', 'efficiency'], ($event.target as HTMLInputElement).value)"
+          />
+        </label>
+        <label class="field">
+          <span>Gate / admission (0–1)</span>
+          <input
+            type="number"
+            step="0.05"
+            min="0"
+            max="1"
+            :value="operator.gateOpening"
+            @change="setOpNum('gateOpening', ($event.target as HTMLInputElement).value)"
           />
         </label>
         <label class="field">
@@ -257,6 +297,10 @@ function summary(id: SectionId): string {
             "
           />
         </label>
+        <p class="note">
+          Gate is the admission valve (how much of the available intake flow is admitted to the
+          turbine). Online/offline is controlled on the Run tab when you play or stop a session.
+        </p>
       </div>
 
       <!-- Generator -->
@@ -285,51 +329,11 @@ function summary(id: SectionId): string {
             "
           />
         </label>
-      </div>
-
-      <!-- Operator -->
-      <div v-else-if="active === 'operator'" class="fields">
-        <label class="field">
-          <span>Gate opening (0–1)</span>
-          <input
-            type="number"
-            step="0.05"
-            min="0"
-            max="1"
-            :value="operator.gateOpening"
-            @change="setOpNum('gateOpening', ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-        <label class="field">
-          <span>Debris clog (0–1)</span>
-          <input
-            type="number"
-            step="0.05"
-            min="0"
-            max="1"
-            :value="operator.debrisClogFraction"
-            @change="setOpNum('debrisClogFraction', ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-        <label class="field">
-          <span>Leakage (0–1)</span>
-          <input
-            type="number"
-            step="0.05"
-            min="0"
-            max="1"
-            :value="operator.leakageFraction"
-            @change="setOpNum('leakageFraction', ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-        <label class="check">
-          <input
-            type="checkbox"
-            :checked="operator.online"
-            @change="setOpBool('online', ($event.target as HTMLInputElement).checked)"
-          />
-          Online
-        </label>
+        <p class="note">
+          Nameplate electrical limit. If the hydraulic calculation wants more, the engine
+          <strong>caps</strong> output at this value and records a warning (no fire model). Raise
+          the rating if you want full uncapped power in the sim.
+        </p>
       </div>
     </div>
   </div>
@@ -451,15 +455,5 @@ function summary(id: SectionId): string {
   font-size: 0.78rem;
   line-height: 1.4;
   color: var(--muted-fg);
-}
-
-.check {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.88rem;
-  color: var(--fg);
-  margin-top: 0.15rem;
 }
 </style>
