@@ -19,9 +19,10 @@ const breakdown = computed(() =>
   <section v-if="breakdown" class="equation" aria-label="Power equation">
     <h3>Steady power from the configuration</h3>
     <p class="lead">
-      \(P = \eta_t\,\eta_g\,\rho\, g\, Q\, H_\mathrm{net}\) with
-      \(H_\mathrm{net} = H_\mathrm{gross} - H_\mathrm{loss}\). Numbers below use this layout and
-      equipment (same formulas as the engine’s steady evaluation).
+      <strong>P<sub>e</sub> = η<sub>t</sub> · η<sub>g</sub> · ρ · g · Q · H<sub>net</sub></strong>
+      with
+      <strong>H<sub>net</sub> = H<sub>gross</sub> − H<sub>loss</sub></strong>.
+      Numbers below use this layout and equipment (same formulas as the engine’s steady evaluation).
     </p>
     <ul class="lines">
       <li v-for="(line, i) in breakdown.lines" :key="i">
