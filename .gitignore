@@ -29,3 +29,9 @@ target
 # Env
 .env
 .env.*
+
+# Node / lab UI
+node_modules/
+**/dist/
+apps/**/dist/
+*.local

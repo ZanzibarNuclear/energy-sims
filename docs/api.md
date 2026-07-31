@@ -1,6 +1,6 @@
 # API surface
 
-**Status:** Library + CLI live (PR2–PR5). Remote service in PR7.
+**Status:** Library + CLI + REST/WebSocket server + optional WASM live (Stage 1).
 
 ## Layers
 
