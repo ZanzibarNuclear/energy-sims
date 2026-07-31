@@ -41,7 +41,7 @@ const snapshot = computed(() => trial.value?.snapshot ?? null);
 const statusNote = computed(() => {
   if (running.value) {
     return wallClockMode.value
-      ? "Wall-clock mode: about 1 real second per simulated second. Close gate anytime to ramp down."
+      ? "Wall-clock mode: about 1 real second per simulated second. Stop anytime to ramp down."
       : "Fast mode: sim seconds as quickly as the engine can compute. Charts update each sim second.";
   }
   if (wallClockMode.value) {
@@ -270,7 +270,7 @@ async function applyGateAndContinue() {
         :disabled="!liveSessionId || (!running && !trial)"
         @click="requestStop"
       >
-        ⏹ Close gate
+        ⏹ Stop
       </button>
     </div>
 
