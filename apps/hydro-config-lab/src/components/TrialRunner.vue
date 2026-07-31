@@ -27,6 +27,8 @@ const STEP_SECS = 1;
 
 const durationSecs = ref(30);
 const spinUpDemo = ref(true);
+/** When true, wait ~1 real second per simulated second. Default: as fast as the engine allows. */
+const wallClockMode = ref(false);
 const running = ref(false);
 const error = ref("");
 const trial = ref<TrialResult | null>(null);
@@ -36,18 +38,22 @@ const liveGate = ref(1);
 const stopRequested = ref(false);
 
 const snapshot = computed(() => trial.value?.snapshot ?? null);
+
+/** Label matches spin-up demo mode, not run/idle state. */
+const stopButtonLabel = computed(() =>
+  spinUpDemo.value ? "⏹ Spin down" : "⏹ Stop",
+);
+
 const statusNote = computed(() => {
   if (running.value) {
-    return "Advancing sim time in 1 s steps (wall clock is much faster than real life). Stop will freeze and spin down.";
+    return wallClockMode.value
+      ? "Wall-clock mode: about 1 real second per simulated second. Use Stop / Spin down anytime."
+      : "Fast mode: sim seconds as quickly as the engine can compute. Charts update each sim second.";
   }
-  if (trial.value && trial.value.samples.length >= 2) {
-    const flat =
-      trial.value.durationSecs > 35
-        ? " After the ramp, longer runs look flat because power is already at steady state."
-        : "";
-    return `Sim time is not wall time — a 60 s run finishes almost instantly on the machine.${flat}`;
+  if (wallClockMode.value) {
+    return "Wall-clock mode is on — a 30 s run takes about half a minute of real time (good for watching ramps).";
   }
-  return "Play advances simulated seconds as fast as the engine can compute. Ramps show in the first ~20–25 s.";
+  return "Fast mode (default): sim time flies. Switch on wall clock to watch ramps in real time. Spin-up checkbox labels the stop control.";
 });
 
 function hydroInputCmd(op: Partial<OperatorInputs> & Record<string, unknown>) {
@@ -112,8 +118,9 @@ async function advanceInSteps(
     lastSnap = report.snapshot;
     left -= dt;
     await refreshTrial(client, sessionId, report.snapshot, energy, mode);
-    // Yield so Vue can paint and Stop can set the flag.
-    await new Promise((r) => setTimeout(r, 0));
+    // Yield for paint / Stop; wall-clock mode paces ~1 real second per sim second.
+    const waitMs = wallClockMode.value ? Math.round(dt * 1000) : 0;
+    await new Promise((r) => setTimeout(r, waitMs));
   }
 
   return { energy, stopped: stopRequested.value, snapshot: lastSnap };
@@ -288,6 +295,10 @@ async function applyGateAndContinue() {
         <input v-model="spinUpDemo" type="checkbox" :disabled="running" />
         Spin-up (gate 0 → open)
       </label>
+      <label class="check" title="Wait about one real second for each simulated second">
+        <input v-model="wallClockMode" type="checkbox" :disabled="running" />
+        Wall clock
+      </label>
       <button
         type="button"
         class="btn primary"
@@ -302,7 +313,7 @@ async function applyGateAndContinue() {
         :disabled="!liveSessionId || (!running && !trial)"
         @click="requestStop"
       >
-        {{ running ? "⏹ Stop" : "⏹ Spin down" }}
+        {{ stopButtonLabel }}
       </button>
     </div>
 
