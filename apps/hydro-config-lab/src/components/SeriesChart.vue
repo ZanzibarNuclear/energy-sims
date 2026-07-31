@@ -42,20 +42,22 @@ const points = computed(() => {
   return { line, area, maxY, maxT };
 });
 
-const yLabel = computed(() =>
-  props.series === "power" ? "P_e (kW)" : "Speed (rpm)",
+const title = computed(() =>
+  props.series === "power" ? "Electrical power (kW)" : "Turbine speed (rpm)",
 );
+
+const yUnit = computed(() => (props.series === "power" ? "kW" : "rpm"));
 </script>
 
 <template>
   <div class="chart">
-    <div class="title">{{ series === "power" ? "Electrical power" : "Turbine speed" }}</div>
+    <div class="title">{{ title }}</div>
     <svg
       v-if="samples.length >= 2"
       :viewBox="`0 0 ${W} ${H}`"
       class="svg"
       role="img"
-      :aria-label="yLabel"
+      :aria-label="title"
     >
       <polyline
         v-if="points.area"
@@ -63,12 +65,14 @@ const yLabel = computed(() =>
         class="area"
       />
       <polyline :points="points.line" class="line" fill="none" />
-      <text :x="pad.l" :y="H - 8" class="axis">0</text>
+      <text :x="pad.l" :y="H - 8" class="axis">0 s</text>
       <text :x="W - pad.r" :y="H - 8" text-anchor="end" class="axis">
         {{ points.maxT.toFixed(0) }} s
       </text>
-      <text :x="4" :y="pad.t + 4" class="axis">{{ points.maxY.toFixed(series === 'power' ? 2 : 0) }}</text>
-      <text :x="4" :y="H - pad.b" class="axis">0</text>
+      <text :x="4" :y="pad.t + 10" class="axis">
+        {{ points.maxY.toFixed(series === "power" ? 1 : 0) }} {{ yUnit }}
+      </text>
+      <text :x="4" :y="H - pad.b" class="axis">0 {{ yUnit }}</text>
     </svg>
     <p v-else class="empty">Run a trial to plot the series.</p>
   </div>
