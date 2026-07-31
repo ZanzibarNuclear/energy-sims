@@ -12,10 +12,13 @@ const props = defineProps<{
 const W = 480;
 const H = computed(() => props.height ?? 140);
 const pad = { l: 44, r: 12, t: 12, b: 28 };
+const TIME_GRID_S = 10;
 
 const points = computed(() => {
   const samples = props.samples;
-  if (samples.length < 2) return { line: "", area: "", maxY: 1, maxT: 1 };
+  if (samples.length < 2) {
+    return { line: "", area: "", maxY: 1, maxT: 1, vLines: [] as { x: number; t: number }[] };
+  }
 
   const ys =
     props.series === "power"
@@ -39,7 +42,16 @@ const points = computed(() => {
     line +
     ` ${pad.l + innerW},${pad.t + innerH}`;
 
-  return { line, area, maxY, maxT };
+  // Vertical grid every 10 s of sim time (including 0).
+  const vLines: { x: number; t: number }[] = [];
+  for (let t = 0; t <= maxT + 1e-9; t += TIME_GRID_S) {
+    vLines.push({
+      t,
+      x: pad.l + (t / maxT) * innerW,
+    });
+  }
+
+  return { line, area, maxY, maxT, vLines };
 });
 
 const title = computed(() =>
@@ -47,6 +59,9 @@ const title = computed(() =>
 );
 
 const yUnit = computed(() => (props.series === "power" ? "kW" : "rpm"));
+
+const plotTop = computed(() => pad.t);
+const plotBottom = computed(() => H.value - pad.b);
 </script>
 
 <template>
@@ -59,15 +74,30 @@ const yUnit = computed(() => (props.series === "power" ? "kW" : "rpm"));
       role="img"
       :aria-label="title"
     >
+      <line
+        v-for="g in points.vLines"
+        :key="'v' + g.t"
+        :x1="g.x"
+        :x2="g.x"
+        :y1="plotTop"
+        :y2="plotBottom"
+        class="vgrid"
+      />
       <polyline
         v-if="points.area"
         :points="points.area"
         class="area"
       />
       <polyline :points="points.line" class="line" fill="none" />
-      <text :x="pad.l" :y="H - 8" class="axis">0 s</text>
-      <text :x="W - pad.r" :y="H - 8" text-anchor="end" class="axis">
-        {{ points.maxT.toFixed(0) }} s
+      <text
+        v-for="g in points.vLines"
+        :key="'tl' + g.t"
+        :x="g.x"
+        :y="H - 8"
+        text-anchor="middle"
+        class="axis"
+      >
+        {{ g.t }} s
       </text>
       <text :x="4" :y="pad.t + 10" class="axis">
         {{ points.maxY.toFixed(series === "power" ? 1 : 0) }} {{ yUnit }}
@@ -109,6 +139,12 @@ const yUnit = computed(() => (props.series === "power" ? "kW" : "rpm"));
 .area {
   fill: color-mix(in srgb, var(--accent) 18%, transparent);
   stroke: none;
+}
+
+.vgrid {
+  stroke: var(--fg);
+  stroke-opacity: 0.12;
+  stroke-width: 1;
 }
 
 .axis {
