@@ -153,12 +153,15 @@ function goTab(id: TabId) {
       aria-label="Equipment"
     >
       <div class="equipment-grid">
-        <PlantForm
-          :params="params"
-          :operator="operator"
-          @update:params="params = $event"
-          @update:operator="operator = $event"
-        />
+        <div class="equipment-main">
+          <PlantForm
+            :params="params"
+            :operator="operator"
+            @update:params="params = $event"
+            @update:operator="operator = $event"
+          />
+          <PowerEquation :params="params" :operator="operator" :derived="derived" />
+        </div>
         <div class="preview-col">
           <SteadyPreview
             :plant="plant"
@@ -171,7 +174,6 @@ function goTab(id: TabId) {
           </p>
         </div>
       </div>
-      <PowerEquation :params="params" :operator="operator" :derived="derived" />
     </section>
 
     <section
@@ -314,6 +316,12 @@ function goTab(id: TabId) {
   align-items: start;
 }
 
+.equipment-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 @media (max-width: 800px) {
   .equipment-grid {
     grid-template-columns: 1fr;
@@ -321,7 +329,6 @@ function goTab(id: TabId) {
 }
 
 .equipment-panel {
-  /* no extra chrome — PlantForm + SteadyPreview carry their own cards */
   padding: 0;
 }
 

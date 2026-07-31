@@ -6,23 +6,22 @@ import type { DerivedGeometry } from "./compileSite";
 import type { OperatorInputs, PlantParams } from "./plantParams";
 
 export type EquationStep = {
-  /** Symbolic form */
-  symbol: string;
-  /** Same equation with numbers substituted */
-  numeric: string;
+  /** Which quantity this step solves for (for a11y). */
+  id: string;
+  /** Product chain of symbols, e.g. ["ηt", "ηg", "ρ", "g", "Q", "Hnet"] */
+  factorsSymbol: string[];
+  /** Same chain with numeric values as strings */
+  factorsNumeric: string[];
+  /** Result value + unit */
+  result: string;
+  /** Left-hand side label HTML-ish plain text for display */
+  lhs: string;
 };
 
 export type PowerBreakdown = {
   idealElectricalKw: number;
   uncappedElectricalKw: number;
   electricalKw: number;
-  hydraulicKw: number;
-  flowM3s: number;
-  netHeadM: number;
-  headLossM: number;
-  grossHeadM: number;
-  capped: boolean;
-  ratedKw: number;
   steps: EquationStep[];
 };
 
@@ -93,22 +92,35 @@ export function computePowerBreakdown(
 
   const steps: EquationStep[] = [
     {
-      symbol: "H_net = H_gross − H_loss",
-      numeric: `H_net = ${f1(Hgross)} − ${f2(loss)} = ${f1(netHead)} m`,
+      id: "Hnet",
+      lhs: "Hnet",
+      factorsSymbol: ["Hgross", "−", "Hloss"],
+      factorsNumeric: [f1(Hgross), "−", f2(loss)],
+      result: `${f1(netHead)} m`,
     },
     {
-      symbol: "Q = Q_intake × gate × (1 − ½·debris) × (1 − leak)",
-      numeric: `Q = ${f4(qAvail)} × ${f2(gate)} × (1 − ${f2(0.5 * clog)}) × (1 − ${f2(leak)}) = ${f4(flow)} m³/s`,
+      id: "Q",
+      lhs: "Q",
+      factorsSymbol: ["Qintake", "gate", "(1−½·debris)", "(1−leak)"],
+      factorsNumeric: [f4(qAvail), f2(gate), f2(1 - 0.5 * clog), f2(1 - leak)],
+      result: `${f4(flow)} m³/s`,
     },
     {
-      symbol: "P_h = ρ · g · Q · H_net",
-      numeric: `P_h = ${f0(rho)} · ${f2(g)} · ${f4(flow)} · ${f1(netHead)} = ${f2(hydraulicKw)} kW`,
+      id: "Ph",
+      lhs: "Ph",
+      factorsSymbol: ["ρ", "g", "Q", "Hnet"],
+      // ρ g Q H → watts; show kW result (values use SI: ρ,g,Q,H → W, /1000 = kW)
+      factorsNumeric: [f0(rho), f2(g), f4(flow), f1(netHead)],
+      result: `${f1(hydraulicKw)} kW`,
     },
     {
-      symbol: "P_e = η_t · η_g · P_h",
-      numeric:
-        `P_e = ${f2(etaT)} · ${f2(etaG)} · ${f2(hydraulicKw)} = ${f2(uncapped)} kW` +
-        (capped ? ` → capped at ${f1(rated)} kW → ${f1(electricalKw)} kW` : ""),
+      id: "Pe",
+      lhs: "Pe",
+      factorsSymbol: ["ηt", "ηg", "Ph"],
+      factorsNumeric: [f2(etaT), f2(etaG), f1(hydraulicKw)],
+      result: capped
+        ? `${f1(uncapped)} kW → ${f1(electricalKw)} kW (rated)`
+        : `${f1(electricalKw)} kW`,
     },
   ];
 
@@ -116,13 +128,6 @@ export function computePowerBreakdown(
     idealElectricalKw,
     uncappedElectricalKw: uncapped,
     electricalKw,
-    hydraulicKw,
-    flowM3s: flow,
-    netHeadM: netHead,
-    headLossM: loss,
-    grossHeadM: Hgross,
-    capped,
-    ratedKw: rated,
     steps,
   };
 }
