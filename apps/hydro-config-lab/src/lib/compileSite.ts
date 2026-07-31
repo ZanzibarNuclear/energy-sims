@@ -137,14 +137,16 @@ export function compileSite(site: Site, params: PlantParams): CompileResult {
     },
     turbine: {
       efficiency: params.turbine.efficiency,
+      // designFlow only affects teaching speed curve / soft warnings, not a hard power limit.
       designFlowM3s: params.turbine.designFlowM3s,
-      maxSafeFlowM3s: params.turbine.maxSafeFlowM3s,
+      // Omit maxSafeFlowM3s so the lab does not hard-cap flow — users explore free configs.
       designSpeedRpm: params.turbine.designSpeedRpm,
       dynamics: { ...params.turbine.dynamics },
     },
     generator: {
       efficiency: params.generator.efficiency,
-      ratedPowerKw: params.generator.ratedPowerKw,
+      // Engine requires a number; use a huge nameplate so electrical output is not clipped.
+      ratedPowerKw: 1e9,
     },
     fluid: {
       densityKgM3: params.fluid.densityKgM3,

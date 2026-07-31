@@ -14,7 +14,6 @@ const breakdown = computed(() =>
   computePowerBreakdown(props.params, props.operator, props.derived),
 );
 
-/** Pretty LHS with subscripts for display. */
 function lhsHtml(lhs: string): string {
   const map: Record<string, string> = {
     Hnet: "H<sub>net</sub>",
@@ -45,19 +44,11 @@ function factorHtml(tok: string): string {
   return map[tok] ?? tok;
 }
 
-function joinFactors(parts: string[], asHtml: boolean): string {
-  // Hnet step uses − as a binary operator between two terms, not ·
+function joinFactorsHtml(parts: string[]): string {
   if (parts.includes("−") && parts.length === 3) {
-    const [a, op, b] = parts;
-    if (asHtml) {
-      return `${factorHtml(a!)} ${op} ${factorHtml(b!)}`;
-    }
-    return `${a} ${op} ${b}`;
+    return `${factorHtml(parts[0]!)} − ${factorHtml(parts[2]!)}`;
   }
-  if (asHtml) {
-    return parts.map(factorHtml).join(" · ");
-  }
-  return parts.join(" · ");
+  return parts.map(factorHtml).join(" · ");
 }
 </script>
 
@@ -68,7 +59,7 @@ function joinFactors(parts: string[], asHtml: boolean): string {
     <div v-for="step in breakdown.steps" :key="step.id" class="step">
       <p
         class="line symbol"
-        v-html="`${lhsHtml(step.lhs)} = ${joinFactors(step.factorsSymbol, true)}`"
+        v-html="`${lhsHtml(step.lhs)} = ${joinFactorsHtml(step.factorsSymbol)}`"
       />
       <p class="line numeric">
         <span v-html="lhsHtml(step.lhs)" />
@@ -89,12 +80,8 @@ function joinFactors(parts: string[], asHtml: boolean): string {
         <span class="v">{{ breakdown.idealElectricalKw.toFixed(1) }} kW</span>
       </div>
       <div>
-        <span class="k">With losses (uncapped)</span>
-        <span class="v">{{ breakdown.uncappedElectricalKw.toFixed(1) }} kW</span>
-      </div>
-      <div>
-        <span class="k">After nameplate</span>
-        <span class="v">{{ breakdown.electricalKw.toFixed(1) }} kW</span>
+        <span class="k">With losses</span>
+        <span class="v">{{ breakdown.withLossesKw.toFixed(1) }} kW</span>
       </div>
     </div>
   </section>
@@ -106,7 +93,6 @@ function joinFactors(parts: string[], asHtml: boolean): string {
 
 <style scoped>
 .equation {
-  margin-top: 0.75rem;
   padding: 0.85rem 1rem;
   border-radius: 10px;
   border: 1px solid var(--border);

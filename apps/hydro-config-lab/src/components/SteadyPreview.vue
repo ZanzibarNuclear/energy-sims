@@ -39,7 +39,7 @@ async function refresh() {
         gate_opening: props.operator.gateOpening,
         debris_clog_fraction: props.operator.debrisClogFraction,
         leakage_fraction: props.operator.leakageFraction,
-        online: props.operator.online,
+        online: true,
       },
     ]);
     snap.value = (after as Snapshot) ?? (snapshot as Snapshot);
@@ -62,6 +62,16 @@ watch(
   () => [props.plant, props.operator, props.enabled] as const,
   () => schedule(),
   { deep: true, immediate: true },
+);
+
+/** Hide engine cap/offline warnings that the lab intentionally avoids. */
+const displayWarnings = computed(() =>
+  (snap.value?.warnings ?? []).filter(
+    (w) =>
+      !/capped at ratedPowerKw/i.test(w) &&
+      !/capped at maxSafeFlowM3s/i.test(w) &&
+      !/plant offline/i.test(w),
+  ),
 );
 </script>
 
@@ -100,29 +110,28 @@ watch(
         <dl>
           <div>
             <dt>Target P<sub>e</sub></dt>
-            <dd>{{ Number(targetKw).toFixed(3) }} kW</dd>
+            <dd>{{ Number(targetKw).toFixed(1) }} kW</dd>
           </div>
           <div>
             <dt>Hydraulic P</dt>
-            <dd>{{ Number(snap.hydraulicPowerKw).toFixed(3) }} kW</dd>
+            <dd>{{ Number(snap.hydraulicPowerKw).toFixed(1) }} kW</dd>
           </div>
           <div>
             <dt>H<sub>net</sub></dt>
-            <dd>{{ Number(snap.netHeadM).toFixed(2) }} m</dd>
+            <dd>{{ Number(snap.netHeadM).toFixed(1) }} m</dd>
           </div>
           <div>
             <dt>Head loss</dt>
-            <dd>{{ Number(snap.headLossM).toFixed(3) }} m</dd>
+            <dd>{{ Number(snap.headLossM).toFixed(2) }} m</dd>
           </div>
           <div>
             <dt>Flow</dt>
             <dd>{{ Number(snap.flowM3s).toFixed(4) }} m³/s</dd>
           </div>
         </dl>
-        <ul v-if="snap.warnings?.length" class="warn">
-          <li v-for="(w, i) in snap.warnings" :key="i">{{ w }}</li>
+        <ul v-if="displayWarnings.length" class="warn">
+          <li v-for="(w, i) in displayWarnings" :key="i">{{ w }}</li>
         </ul>
-        <button type="button" class="link" :disabled="loading" @click="refresh">Refresh</button>
       </template>
     </section>
   </div>
@@ -198,22 +207,5 @@ dd {
   padding-left: 1.1rem;
   font-size: 0.75rem;
   color: #b8860b;
-}
-
-.link {
-  margin-top: 0.45rem;
-  font: inherit;
-  font-size: 0.78rem;
-  color: var(--accent);
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 0;
-}
-
-.link:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 </style>

@@ -79,7 +79,7 @@ function summary(id: SectionId): string {
     case "turbine":
       return `η ${p.turbine.efficiency} · gate ${o.gateOpening}`;
     case "generator":
-      return `η ${p.generator.efficiency} · ${p.generator.ratedPowerKw} kW`;
+      return `η ${p.generator.efficiency}`;
   }
 }
 </script>
@@ -248,17 +248,6 @@ function summary(id: SectionId): string {
           />
         </label>
         <label class="field">
-          <span>Max safe flow (m³/s)</span>
-          <input
-            type="number"
-            step="0.001"
-            :value="params.turbine.maxSafeFlowM3s"
-            @change="
-              setNum(['turbine', 'maxSafeFlowM3s'], ($event.target as HTMLInputElement).value)
-            "
-          />
-        </label>
-        <label class="field">
           <span>Design speed (rpm)</span>
           <input
             type="number"
@@ -318,21 +307,9 @@ function summary(id: SectionId): string {
             "
           />
         </label>
-        <label class="field">
-          <span>Rated power (kW)</span>
-          <input
-            type="number"
-            step="0.1"
-            :value="params.generator.ratedPowerKw"
-            @change="
-              setNum(['generator', 'ratedPowerKw'], ($event.target as HTMLInputElement).value)
-            "
-          />
-        </label>
         <p class="note">
-          Nameplate electrical limit. If the hydraulic calculation wants more, the engine
-          <strong>caps</strong> output at this value and records a warning (no fire model). Raise
-          the rating if you want full uncapped power in the sim.
+          Electrical efficiency only. The lab does not apply a generator nameplate cap so you can
+          see full power from the layout and losses.
         </p>
       </div>
     </div>

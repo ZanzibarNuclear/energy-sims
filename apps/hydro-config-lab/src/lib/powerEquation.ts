@@ -1,27 +1,22 @@
 /**
  * Steady power estimate mirroring energy-sim-core (for teaching display).
+ * Lab path: no max-safe flow clip and no generator nameplate clip.
  */
 
 import type { DerivedGeometry } from "./compileSite";
 import type { OperatorInputs, PlantParams } from "./plantParams";
 
 export type EquationStep = {
-  /** Which quantity this step solves for (for a11y). */
   id: string;
-  /** Product chain of symbols, e.g. ["ηt", "ηg", "ρ", "g", "Q", "Hnet"] */
   factorsSymbol: string[];
-  /** Same chain with numeric values as strings */
   factorsNumeric: string[];
-  /** Result value + unit */
   result: string;
-  /** Left-hand side label HTML-ish plain text for display */
   lhs: string;
 };
 
 export type PowerBreakdown = {
   idealElectricalKw: number;
-  uncappedElectricalKw: number;
-  electricalKw: number;
+  withLossesKw: number;
   steps: EquationStep[];
 };
 
@@ -74,17 +69,12 @@ export function computePowerBreakdown(
   const idealHydW = rho * g * qAvail * Math.max(0, Hgross);
   const idealElectricalKw = (idealHydW / 1000) * eta;
 
-  let flow = qAvail * gate * (1 - 0.5 * clog) * (1 - leak);
-  if (params.turbine.maxSafeFlowM3s != null && flow > params.turbine.maxSafeFlowM3s) {
-    flow = params.turbine.maxSafeFlowM3s;
-  }
+  // No max-safe flow cap in the lab teaching path.
+  const flow = qAvail * gate * (1 - 0.5 * clog) * (1 - leak);
   const loss = headLossM(flow, L, D, f, K, clog, g);
   const netHead = Math.max(0, Hgross - loss);
   const hydraulicKw = (rho * g * flow * netHead) / 1000;
-  const uncapped = hydraulicKw * eta;
-  const rated = params.generator.ratedPowerKw;
-  const capped = uncapped > rated;
-  const electricalKw = capped ? rated : uncapped;
+  const withLossesKw = hydraulicKw * eta;
 
   const f1 = (n: number) => n.toFixed(1);
   const f2 = (n: number) => n.toFixed(2);
@@ -109,7 +99,6 @@ export function computePowerBreakdown(
       id: "Ph",
       lhs: "Ph",
       factorsSymbol: ["ρ", "g", "Q", "Hnet"],
-      // ρ g Q H → watts; show kW result (values use SI: ρ,g,Q,H → W, /1000 = kW)
       factorsNumeric: [f0(rho), f2(g), f4(flow), f1(netHead)],
       result: `${f1(hydraulicKw)} kW`,
     },
@@ -118,16 +107,13 @@ export function computePowerBreakdown(
       lhs: "Pe",
       factorsSymbol: ["ηt", "ηg", "Ph"],
       factorsNumeric: [f2(etaT), f2(etaG), f1(hydraulicKw)],
-      result: capped
-        ? `${f1(uncapped)} kW → ${f1(electricalKw)} kW (rated)`
-        : `${f1(electricalKw)} kW`,
+      result: `${f1(withLossesKw)} kW`,
     },
   ];
 
   return {
     idealElectricalKw,
-    uncappedElectricalKw: uncapped,
-    electricalKw,
+    withLossesKw,
     steps,
   };
 }

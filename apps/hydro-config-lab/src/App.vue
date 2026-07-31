@@ -18,19 +18,20 @@ import {
   type SiteSelection,
 } from "./lib/site";
 
-type TabId = "layout" | "equipment" | "run";
+type TabId = "layout" | "equipment" | "run" | "calc";
 
 const tabs: { id: TabId; step: string; label: string }[] = [
   { id: "layout", step: "1", label: "Layout" },
   { id: "equipment", step: "2", label: "Equipment" },
-  { id: "run", step: "3", label: "Run" },
+  { id: "calc", step: "3", label: "Calculations" },
+  { id: "run", step: "4", label: "Run" },
 ];
 
 const instructions: Record<TabId, string> = {
   layout: "Lay out the penstock so that it runs downhill from intake to turbine.",
-  equipment:
-    "Set intake flow, pipe, turbine, and generator. Head and length stay from Layout. See the power equation below.",
-  run: "Start the energy-sim engine and play a timed run to watch power and speed ramp.",
+  equipment: "Set intake flow, pipe, turbine, and generator. Head and length stay from Layout.",
+  calc: "See layout geometry, steady engine preview, and the power equation with your numbers.",
+  run: "Play a timed run against the engine and watch power and speed ramp.",
 };
 
 const tab = ref<TabId>("layout");
@@ -152,16 +153,22 @@ function goTab(id: TabId) {
       role="tabpanel"
       aria-label="Equipment"
     >
-      <div class="equipment-grid">
-        <div class="equipment-main">
-          <PlantForm
-            :params="params"
-            :operator="operator"
-            @update:params="params = $event"
-            @update:operator="operator = $event"
-          />
-          <PowerEquation :params="params" :operator="operator" :derived="derived" />
-        </div>
+      <PlantForm
+        :params="params"
+        :operator="operator"
+        @update:params="params = $event"
+        @update:operator="operator = $event"
+      />
+    </section>
+
+    <section
+      v-show="tab === 'calc'"
+      class="panel calc-panel"
+      role="tabpanel"
+      aria-label="Calculations"
+    >
+      <div class="calc-grid">
+        <PowerEquation :params="params" :operator="operator" :derived="derived" />
         <div class="preview-col">
           <SteadyPreview
             :plant="plant"
@@ -309,32 +316,30 @@ function goTab(id: TabId) {
   min-height: 26rem;
 }
 
-.equipment-grid {
+.equipment-panel {
+  padding: 0;
+}
+
+.calc-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(13rem, 16rem);
   gap: 1rem;
   align-items: start;
 }
 
-.equipment-main {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
 @media (max-width: 800px) {
-  .equipment-grid {
+  .calc-grid {
     grid-template-columns: 1fr;
   }
-}
-
-.equipment-panel {
-  padding: 0;
 }
 
 .preview-col {
   position: sticky;
   top: 0.5rem;
+}
+
+.calc-panel {
+  padding: 0;
 }
 
 .compile-err {

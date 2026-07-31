@@ -105,6 +105,7 @@ export function defaultPlantParams(): PlantParams {
     turbine: {
       efficiency: 0.75,
       designFlowM3s: 0.04,
+      // Soft design point only (speed model); not used as a hard flow cap in the lab.
       maxSafeFlowM3s: 0.06,
       designSpeedRpm: 1000,
       dynamics: {
@@ -116,7 +117,8 @@ export function defaultPlantParams(): PlantParams {
     },
     generator: {
       efficiency: 0.92,
-      ratedPowerKw: 8,
+      // Stored for export compatibility; lab evaluation does not clip to this.
+      ratedPowerKw: 1e9,
     },
     fluid: {
       densityKgM3: 1000,
