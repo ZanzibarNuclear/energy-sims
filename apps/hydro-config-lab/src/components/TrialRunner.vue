@@ -184,17 +184,33 @@ async function runTrial() {
   }
 }
 
+/**
+ * Spin-down: close the gate while the session stays Running, then advance
+ * through the power ramp. Calling stop() first sets phase=Stopped and the
+ * engine refuses advance until start() — see energy-sim-runtime session tests.
+ */
 async function spinDown(
   client: EnergySimClient,
   sessionId: string,
   energySoFar: number,
   mode: "interval" | "spinup",
 ) {
-  await client.stop(sessionId);
+  // Ensure Running (needed if a prior stop() left phase=Stopped).
+  await client.start(sessionId);
+  await client.applyCommands(sessionId, [
+    hydroInputCmd({
+      gateOpening: 0,
+      debrisClogFraction: props.operator.debrisClogFraction,
+      leakageFraction: props.operator.leakageFraction,
+      online: true,
+    }),
+  ]);
+  liveGate.value = 0;
   const down = Math.max(25, props.plant?.turbine.dynamics.powerRampDownS ?? 25);
-  // Step spin-down too so the chart animates the fall.
   stopRequested.value = false;
   await advanceInSteps(client, sessionId, down, mode, energySoFar);
+  // Mark session stopped only after the ramp has been integrated.
+  await client.stop(sessionId);
 }
 
 function requestStop() {
