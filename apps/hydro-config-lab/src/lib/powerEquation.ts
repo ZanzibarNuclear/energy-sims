@@ -1,33 +1,29 @@
 /**
  * Steady power estimate mirroring energy-sim-core (for teaching display).
- * Layout supplies H_gross and L; losses follow the engine catalog.
  */
 
 import type { DerivedGeometry } from "./compileSite";
 import type { OperatorInputs, PlantParams } from "./plantParams";
 
+export type EquationStep = {
+  /** Symbolic form */
+  symbol: string;
+  /** Same equation with numbers substituted */
+  numeric: string;
+};
+
 export type PowerBreakdown = {
-  /** Ideal (no losses): η ρ g Q_intake H_gross */
   idealElectricalKw: number;
-  /** With losses & operator, before nameplate cap */
   uncappedElectricalKw: number;
-  /** After ratedPowerKw cap */
   electricalKw: number;
   hydraulicKw: number;
   flowM3s: number;
-  qAvailable: number;
-  grossHeadM: number;
   netHeadM: number;
   headLossM: number;
-  etaTurbine: number;
-  etaGenerator: number;
-  eta: number;
-  rho: number;
-  g: number;
-  ratedKw: number;
+  grossHeadM: number;
   capped: boolean;
-  /** Human-readable substitution for the main equation */
-  lines: string[];
+  ratedKw: number;
+  steps: EquationStep[];
 };
 
 function velocityHead(flow: number, diameter: number, g: number): number {
@@ -37,7 +33,6 @@ function velocityHead(flow: number, diameter: number, g: number): number {
   return (v * v) / (2 * g);
 }
 
-/** Head losses matching core catalog (friction + minor + debris). */
 function headLossM(
   flow: number,
   lengthM: number,
@@ -77,11 +72,9 @@ export function computePowerBreakdown(
   const leak = Math.min(1, Math.max(0, operator.leakageFraction));
   const clog = Math.min(1, Math.max(0, operator.debrisClogFraction));
 
-  // Ideal max: full intake flow, full gross head, no losses (teaching ceiling).
   const idealHydW = rho * g * qAvail * Math.max(0, Hgross);
   const idealElectricalKw = (idealHydW / 1000) * eta;
 
-  // Operating point (engine-like steady state).
   let flow = qAvail * gate * (1 - 0.5 * clog) * (1 - leak);
   if (params.turbine.maxSafeFlowM3s != null && flow > params.turbine.maxSafeFlowM3s) {
     flow = params.turbine.maxSafeFlowM3s;
@@ -94,16 +87,29 @@ export function computePowerBreakdown(
   const capped = uncapped > rated;
   const electricalKw = capped ? rated : uncapped;
 
-  const f3 = (n: number) => n.toFixed(3);
+  const f1 = (n: number) => n.toFixed(1);
   const f2 = (n: number) => n.toFixed(2);
   const f4 = (n: number) => n.toFixed(4);
 
-  const lines = [
-    `P_hyd = ρ g Q H_net = ${f2(rho)} × ${f3(g)} × ${f4(flow)} × ${f2(netHead)} → ${f3(hydraulicKw)} kW`,
-    `P_e = η_t η_g P_hyd = ${f2(etaT)} × ${f2(etaG)} × ${f3(hydraulicKw)} → ${f3(uncapped)} kW` +
-      (capped ? ` (capped at rated ${f2(rated)} kW → ${f3(electricalKw)} kW)` : ""),
-    `H_net = H_gross − H_loss = ${f2(Hgross)} − ${f3(loss)} = ${f2(netHead)} m`,
-    `Q = Q_intake × gate × (1 − ½·debris) × (1 − leak) = ${f4(qAvail)} × ${f2(gate)} × … → ${f4(flow)} m³/s`,
+  const steps: EquationStep[] = [
+    {
+      symbol: "H_net = H_gross − H_loss",
+      numeric: `H_net = ${f1(Hgross)} − ${f2(loss)} = ${f1(netHead)} m`,
+    },
+    {
+      symbol: "Q = Q_intake × gate × (1 − ½·debris) × (1 − leak)",
+      numeric: `Q = ${f4(qAvail)} × ${f2(gate)} × (1 − ${f2(0.5 * clog)}) × (1 − ${f2(leak)}) = ${f4(flow)} m³/s`,
+    },
+    {
+      symbol: "P_h = ρ · g · Q · H_net",
+      numeric: `P_h = ${f0(rho)} · ${f2(g)} · ${f4(flow)} · ${f1(netHead)} = ${f2(hydraulicKw)} kW`,
+    },
+    {
+      symbol: "P_e = η_t · η_g · P_h",
+      numeric:
+        `P_e = ${f2(etaT)} · ${f2(etaG)} · ${f2(hydraulicKw)} = ${f2(uncapped)} kW` +
+        (capped ? ` → capped at ${f1(rated)} kW → ${f1(electricalKw)} kW` : ""),
+    },
   ];
 
   return {
@@ -112,17 +118,15 @@ export function computePowerBreakdown(
     electricalKw,
     hydraulicKw,
     flowM3s: flow,
-    qAvailable: qAvail,
-    grossHeadM: Hgross,
     netHeadM: netHead,
     headLossM: loss,
-    etaTurbine: etaT,
-    etaGenerator: etaG,
-    eta,
-    rho,
-    g,
-    ratedKw: rated,
+    grossHeadM: Hgross,
     capped,
-    lines,
+    ratedKw: rated,
+    steps,
   };
+}
+
+function f0(n: number): string {
+  return n.toFixed(0);
 }

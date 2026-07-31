@@ -18,35 +18,37 @@ const breakdown = computed(() =>
 <template>
   <section v-if="breakdown" class="equation" aria-label="Power equation">
     <h3>Steady power from the configuration</h3>
-    <p class="lead">
+
+    <p class="headline">
       <strong>P<sub>e</sub> = η<sub>t</sub> · η<sub>g</sub> · ρ · g · Q · H<sub>net</sub></strong>
-      with
-      <strong>H<sub>net</sub> = H<sub>gross</sub> − H<sub>loss</sub></strong>.
-      Numbers below use this layout and equipment (same formulas as the engine’s steady evaluation).
     </p>
-    <ul class="lines">
-      <li v-for="(line, i) in breakdown.lines" :key="i">
-        <code>{{ line }}</code>
+    <p class="headline">
+      <strong>H<sub>net</sub> = H<sub>gross</sub> − H<sub>loss</sub></strong>
+    </p>
+
+    <ol class="steps">
+      <li v-for="(step, i) in breakdown.steps" :key="i" class="step">
+        <div class="symbol">{{ step.symbol }}</div>
+        <div class="numeric">
+          <code>{{ step.numeric }}</code>
+        </div>
       </li>
-    </ul>
+    </ol>
+
     <div class="totals">
       <div>
         <span class="k">Ideal (no losses)</span>
-        <span class="v">{{ breakdown.idealElectricalKw.toFixed(3) }} kW</span>
+        <span class="v">{{ breakdown.idealElectricalKw.toFixed(1) }} kW</span>
       </div>
       <div>
         <span class="k">With losses (uncapped)</span>
-        <span class="v">{{ breakdown.uncappedElectricalKw.toFixed(3) }} kW</span>
+        <span class="v">{{ breakdown.uncappedElectricalKw.toFixed(1) }} kW</span>
       </div>
       <div>
         <span class="k">After nameplate cap</span>
-        <span class="v">{{ breakdown.electricalKw.toFixed(3) }} kW</span>
+        <span class="v">{{ breakdown.electricalKw.toFixed(1) }} kW</span>
       </div>
     </div>
-    <p class="foot">
-      Bends raise minor-loss K (from Layout turn angles), which increases H_loss and lowers
-      H_net. The Run tab ramps toward this steady target rather than jumping instantly.
-    </p>
   </section>
   <section v-else class="equation muted">
     <h3>Steady power from the configuration</h3>
@@ -68,40 +70,57 @@ const breakdown = computed(() =>
 }
 
 h3 {
-  margin: 0 0 0.4rem;
+  margin: 0 0 0.55rem;
   font-size: 0.95rem;
   font-weight: 650;
 }
 
-.lead {
-  margin: 0 0 0.55rem;
-  font-size: 0.85rem;
+.headline {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.steps {
+  margin: 0.75rem 0 0.85rem;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.step {
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.symbol {
+  font-size: 0.9rem;
+  font-weight: 650;
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin-bottom: 0.3rem;
+  color: var(--fg);
+}
+
+.numeric code {
+  font-size: 0.82rem;
   line-height: 1.45;
-  color: var(--muted-fg);
-}
-
-.lines {
-  margin: 0 0 0.65rem;
-  padding-left: 1.1rem;
-}
-
-.lines code {
-  font-size: 0.78rem;
-  line-height: 1.5;
   background: var(--code-bg);
-  padding: 0.15rem 0.35rem;
+  padding: 0.2rem 0.4rem;
   border-radius: 4px;
   display: inline-block;
-  margin: 0.15rem 0;
   white-space: pre-wrap;
   word-break: break-word;
+  color: var(--muted-fg);
 }
 
 .totals {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem 1.25rem;
-  margin-bottom: 0.5rem;
 }
 
 .totals .k {
@@ -116,12 +135,5 @@ h3 {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   font-size: 0.95rem;
-}
-
-.foot {
-  margin: 0;
-  font-size: 0.78rem;
-  line-height: 1.4;
-  color: var(--muted-fg);
 }
 </style>
