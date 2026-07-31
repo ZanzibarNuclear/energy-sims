@@ -74,6 +74,42 @@ function joinFactorsHtml(parts: string[]): string {
       </p>
     </div>
 
+    <div class="loss-card">
+      <h4>Head loss breakdown</h4>
+      <p class="loss-note">
+        Losses scale with velocity head v²/(2g). Small diameter or large Q makes v large, so
+        H<sub>loss</sub> can exceed H<sub>gross</sub> — then H<sub>net</sub> is 0 (pipe cannot
+        deliver that flow over this head).
+      </p>
+      <dl>
+        <div>
+          <dt>Velocity</dt>
+          <dd>{{ breakdown.losses.velocityMs.toFixed(2) }} m/s</dd>
+        </div>
+        <div>
+          <dt>Friction h<sub>f</sub></dt>
+          <dd>{{ breakdown.losses.frictionM.toFixed(2) }} m</dd>
+        </div>
+        <div>
+          <dt>Minor h<sub>m</sub> (K)</dt>
+          <dd>{{ breakdown.losses.minorM.toFixed(2) }} m</dd>
+        </div>
+        <div>
+          <dt>Debris</dt>
+          <dd>{{ breakdown.losses.debrisM.toFixed(2) }} m</dd>
+        </div>
+        <div class="total">
+          <dt>H<sub>loss</sub></dt>
+          <dd>{{ breakdown.losses.totalM.toFixed(2) }} m</dd>
+        </div>
+      </dl>
+      <p v-if="breakdown.headStarved" class="starved" role="status">
+        H<sub>loss</sub> ({{ breakdown.losses.totalM.toFixed(1) }} m) is greater than
+        H<sub>gross</sub> ({{ breakdown.grossHeadM.toFixed(1) }} m). Increase diameter, reduce
+        intake flow, shorten the run, or ease bends/friction so the penstock can pass the flow.
+      </p>
+    </div>
+
     <div class="totals">
       <div>
         <span class="k">Ideal (no losses)</span>
@@ -109,12 +145,17 @@ h3 {
   font-weight: 650;
 }
 
-.step {
-  margin-bottom: 0.75rem;
+h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-fg);
 }
 
-.step:last-of-type {
-  margin-bottom: 0.85rem;
+.step {
+  margin-bottom: 0.75rem;
 }
 
 .line {
@@ -137,6 +178,60 @@ h3 {
 .numeric strong {
   color: var(--fg);
   font-weight: 700;
+}
+
+.loss-card {
+  margin: 0.25rem 0 0.85rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.loss-note {
+  margin: 0 0 0.5rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--muted-fg);
+}
+
+.loss-card dl {
+  margin: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.loss-card dl div {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+}
+
+.loss-card dt {
+  color: var(--muted-fg);
+}
+
+.loss-card dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.loss-card .total {
+  margin-top: 0.2rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid var(--border);
+}
+
+.starved {
+  margin: 0.55rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--fg);
+  padding: 0.45rem 0.55rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, #c9a227 18%, transparent);
+  border: 1px solid color-mix(in srgb, #c9a227 40%, var(--border));
 }
 
 .totals {

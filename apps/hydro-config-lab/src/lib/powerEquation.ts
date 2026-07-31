@@ -14,20 +14,32 @@ export type EquationStep = {
   lhs: string;
 };
 
+export type LossBreakdown = {
+  frictionM: number;
+  minorM: number;
+  debrisM: number;
+  totalM: number;
+  velocityMs: number;
+  velocityHeadM: number;
+};
+
 export type PowerBreakdown = {
   idealElectricalKw: number;
   withLossesKw: number;
+  flowM3s: number;
+  grossHeadM: number;
+  netHeadM: number;
+  losses: LossBreakdown;
+  /** True when friction/minor losses consume all gross head. */
+  headStarved: boolean;
   steps: EquationStep[];
 };
 
-function velocityHead(flow: number, diameter: number, g: number): number {
-  if (diameter <= 0 || flow <= 0 || g <= 0) return 0;
-  const area = Math.PI * (diameter * 0.5) ** 2;
-  const v = flow / area;
-  return (v * v) / (2 * g);
+function areaM2(diameterM: number): number {
+  return Math.PI * (diameterM * 0.5) ** 2;
 }
 
-function headLossM(
+function lossBreakdown(
   flow: number,
   lengthM: number,
   diameterM: number,
@@ -35,13 +47,32 @@ function headLossM(
   minorK: number,
   debrisClog: number,
   g: number,
-): number {
+): LossBreakdown {
   const clog = Math.min(1, Math.max(0, debrisClog));
-  const vh = velocityHead(flow, diameterM, g);
-  const friction = diameterM > 0 ? frictionFactor * (lengthM / diameterM) * vh : 0;
-  const minor = minorK * vh;
-  const debris = 10 * clog * vh;
-  return friction + minor + debris;
+  if (diameterM <= 0 || flow <= 0 || g <= 0) {
+    return {
+      frictionM: 0,
+      minorM: 0,
+      debrisM: 0,
+      totalM: 0,
+      velocityMs: 0,
+      velocityHeadM: 0,
+    };
+  }
+  const a = areaM2(diameterM);
+  const v = flow / a;
+  const vh = (v * v) / (2 * g);
+  const frictionM = frictionFactor * (lengthM / diameterM) * vh;
+  const minorM = minorK * vh;
+  const debrisM = 10 * clog * vh;
+  return {
+    frictionM,
+    minorM,
+    debrisM,
+    totalM: frictionM + minorM + debrisM,
+    velocityMs: v,
+    velocityHeadM: vh,
+  };
 }
 
 export function computePowerBreakdown(
@@ -69,10 +100,10 @@ export function computePowerBreakdown(
   const idealHydW = rho * g * qAvail * Math.max(0, Hgross);
   const idealElectricalKw = (idealHydW / 1000) * eta;
 
-  // No max-safe flow cap in the lab teaching path.
   const flow = qAvail * gate * (1 - 0.5 * clog) * (1 - leak);
-  const loss = headLossM(flow, L, D, f, K, clog, g);
-  const netHead = Math.max(0, Hgross - loss);
+  const losses = lossBreakdown(flow, L, D, f, K, clog, g);
+  const netHead = Math.max(0, Hgross - losses.totalM);
+  const headStarved = losses.totalM > Hgross && flow > 0 && Hgross >= 0;
   const hydraulicKw = (rho * g * flow * netHead) / 1000;
   const withLossesKw = hydraulicKw * eta;
 
@@ -80,14 +111,8 @@ export function computePowerBreakdown(
   const f2 = (n: number) => n.toFixed(2);
   const f4 = (n: number) => n.toFixed(4);
 
+  // Order: Q first (sets velocity), then H_net (loss depends on Q), then power.
   const steps: EquationStep[] = [
-    {
-      id: "Hnet",
-      lhs: "Hnet",
-      factorsSymbol: ["Hgross", "−", "Hloss"],
-      factorsNumeric: [f1(Hgross), "−", f2(loss)],
-      result: `${f1(netHead)} m`,
-    },
     {
       id: "Q",
       lhs: "Q",
@@ -96,10 +121,17 @@ export function computePowerBreakdown(
       result: `${f4(flow)} m³/s`,
     },
     {
+      id: "Hnet",
+      lhs: "Hnet",
+      factorsSymbol: ["Hgross", "−", "Hloss"],
+      factorsNumeric: [f1(Hgross), "−", f2(losses.totalM)],
+      result: `${f1(netHead)} m`,
+    },
+    {
       id: "Ph",
       lhs: "Ph",
       factorsSymbol: ["ρ", "g", "Q", "Hnet"],
-      factorsNumeric: [f0(rho), f2(g), f4(flow), f1(netHead)],
+      factorsNumeric: [String(Math.round(rho)), f2(g), f4(flow), f1(netHead)],
       result: `${f1(hydraulicKw)} kW`,
     },
     {
@@ -114,10 +146,11 @@ export function computePowerBreakdown(
   return {
     idealElectricalKw,
     withLossesKw,
+    flowM3s: flow,
+    grossHeadM: Hgross,
+    netHeadM: netHead,
+    losses,
+    headStarved,
     steps,
   };
-}
-
-function f0(n: number): string {
-  return n.toFixed(0);
 }

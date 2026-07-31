@@ -90,6 +90,7 @@ export function defaultPlantParams(): PlantParams {
   return {
     id: "lab-plant",
     label: "Lab plant",
+    // ~40 L/s through a 25 cm penstock → low velocity, H_loss ≪ H_gross on the default site.
     stream: { availableFlowM3s: 0.04 },
     penstock: {
       diameterM: 0.25,
