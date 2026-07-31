@@ -26,11 +26,6 @@ const DURATION_OPTIONS = [
 const STEP_SECS = 1;
 
 const durationSecs = ref(30);
-/**
- * App-only demo sequence: start gate closed, then open (so the chart shows a full 0→target climb).
- * Does not disable engine ramps — those always apply whenever power/speed targets change.
- */
-const startFromClosedGate = ref(true);
 /** When true, wait ~1 real second per simulated second. Default: as fast as the engine allows. */
 const wallClockMode = ref(false);
 const running = ref(false);
@@ -50,9 +45,9 @@ const statusNote = computed(() => {
       : "Fast mode: sim seconds as quickly as the engine can compute. Charts update each sim second.";
   }
   if (wallClockMode.value) {
-    return "Wall-clock mode: ~1 real second per sim second. Engine ramps (~20–25 s) always apply when power targets change.";
+    return "Wall-clock mode: ~1 real second per sim second. Engine ramps (~20–25 s) apply when power targets change.";
   }
-  return "Fast mode (default). Power/speed ramps are built into the engine (real spin-up/down). Optional: start with gate closed, then open.";
+  return "Fast mode (default). Power/speed ramps are built into the engine (real spin-up/down).";
 });
 
 function hydroInputCmd(op: Partial<OperatorInputs> & Record<string, unknown>) {
@@ -77,7 +72,6 @@ async function refreshTrial(
   sessionId: string,
   snapshot: Snapshot,
   energyIntervalKwh: number,
-  mode: "interval" | "spinup",
 ) {
   const hist = await client.history(sessionId);
   const samples = samplesFromHistory(hist);
@@ -88,7 +82,7 @@ async function refreshTrial(
     snapshot,
     energyIntervalKwh,
     durationSecs: lastT,
-    mode,
+    mode: "interval",
   };
 }
 
@@ -99,7 +93,6 @@ async function advanceInSteps(
   client: EnergySimClient,
   sessionId: string,
   totalSecs: number,
-  mode: "interval" | "spinup",
   energySoFar: number,
 ): Promise<{ energy: number; stopped: boolean; snapshot: Snapshot | null }> {
   let left = totalSecs;
@@ -116,7 +109,7 @@ async function advanceInSteps(
     energy += energyFrom(report);
     lastSnap = report.snapshot;
     left -= dt;
-    await refreshTrial(client, sessionId, report.snapshot, energy, mode);
+    await refreshTrial(client, sessionId, report.snapshot, energy);
     // Yield for paint / Stop; wall-clock mode paces ~1 real second per sim second.
     const waitMs = wallClockMode.value ? Math.round(dt * 1000) : 0;
     await new Promise((r) => setTimeout(r, waitMs));
@@ -140,48 +133,22 @@ async function runTrial() {
     const client = createEnergySimClient({ baseUrl: defaultEngineUrl() });
     const { sessionId } = await client.createSession(props.plant);
     liveSessionId.value = sessionId;
-    const mode = startFromClosedGate.value ? "spinup" : "interval";
-    let energy = 0;
 
-    if (startFromClosedGate.value) {
-      // Demo: begin closed, then open so the climb is obvious from zero.
-      await client.applyCommands(sessionId, [
-        hydroInputCmd({
-          ...props.operator,
-          gateOpening: 0,
-          online: true,
-        }),
-      ]);
-      await client.start(sessionId);
-      await client.advance(sessionId, { durationSecs: 1 });
-      await client.applyCommands(sessionId, [
-        hydroInputCmd({
-          ...props.operator,
-          gateOpening: props.operator.gateOpening > 0 ? props.operator.gateOpening : 1,
-          online: true,
-        }),
-      ]);
-      liveGate.value = props.operator.gateOpening > 0 ? props.operator.gateOpening : 1;
-    } else {
-      // Gate already at configured opening — still ramps from actual 0 → target (engine dynamics).
-      await client.applyCommands(sessionId, [
-        hydroInputCmd({ ...props.operator, online: true }),
-      ]);
-      await client.start(sessionId);
-      liveGate.value = props.operator.gateOpening;
-    }
+    await client.applyCommands(sessionId, [
+      hydroInputCmd({ ...props.operator, online: true }),
+    ]);
+    await client.start(sessionId);
+    liveGate.value = props.operator.gateOpening;
 
-    const { energy: e2, stopped } = await advanceInSteps(
+    const { energy, stopped } = await advanceInSteps(
       client,
       sessionId,
       durationSecs.value,
-      mode,
-      energy,
+      0,
     );
-    energy = e2;
 
     if (stopped) {
-      await spinDown(client, sessionId, energy, mode);
+      await closeGateAndRampDown(client, sessionId, energy);
     }
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
@@ -193,17 +160,14 @@ async function runTrial() {
 }
 
 /**
- * Spin-down: close the gate while the session stays Running, then advance
- * through the power ramp. Calling stop() first sets phase=Stopped and the
- * engine refuses advance until start() — see energy-sim-runtime session tests.
+ * Close the gate while the session stays Running, then advance through the
+ * power ramp-down. Do not call stop() before advance (Stopped blocks ticks).
  */
-async function spinDown(
+async function closeGateAndRampDown(
   client: EnergySimClient,
   sessionId: string,
   energySoFar: number,
-  mode: "interval" | "spinup",
 ) {
-  // Ensure Running (needed if a prior stop() left phase=Stopped).
   await client.start(sessionId);
   await client.applyCommands(sessionId, [
     hydroInputCmd({
@@ -216,8 +180,7 @@ async function spinDown(
   liveGate.value = 0;
   const down = Math.max(25, props.plant?.turbine.dynamics.powerRampDownS ?? 25);
   stopRequested.value = false;
-  await advanceInSteps(client, sessionId, down, mode, energySoFar);
-  // Mark session stopped only after the ramp has been integrated.
+  await advanceInSteps(client, sessionId, down, energySoFar);
   await client.stop(sessionId);
 }
 
@@ -226,21 +189,19 @@ function requestStop() {
     stopRequested.value = true;
     return;
   }
-  // After a finished run, Stop still means “spin down from steady”.
-  void stopAfterRun();
+  void closeGateAfterRun();
 }
 
-async function stopAfterRun() {
+async function closeGateAfterRun() {
   if (!liveSessionId.value || running.value) return;
   running.value = true;
   error.value = "";
   try {
     const client = createEnergySimClient({ baseUrl: defaultEngineUrl() });
-    await spinDown(
+    await closeGateAndRampDown(
       client,
       liveSessionId.value,
       trial.value?.energyIntervalKwh ?? 0,
-      trial.value?.mode ?? "interval",
     );
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
@@ -268,7 +229,6 @@ async function applyGateAndContinue() {
       client,
       liveSessionId.value,
       30,
-      trial.value?.mode ?? "interval",
       trial.value?.energyIntervalKwh ?? 0,
     );
   } catch (e) {
@@ -291,13 +251,6 @@ async function applyGateAndContinue() {
             {{ d.label }}
           </option>
         </select>
-      </label>
-      <label
-        class="check"
-        title="Start with the gate closed, then open it (demo sequence only). Engine ramps always apply."
-      >
-        <input v-model="startFromClosedGate" type="checkbox" :disabled="running" />
-        Start gate closed
       </label>
       <label class="check" title="Wait about one real second for each simulated second">
         <input v-model="wallClockMode" type="checkbox" :disabled="running" />
