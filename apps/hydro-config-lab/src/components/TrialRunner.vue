@@ -185,30 +185,8 @@ async function closeGateAndRampDown(
 }
 
 function requestStop() {
-  if (running.value) {
-    stopRequested.value = true;
-    return;
-  }
-  void closeGateAfterRun();
-}
-
-async function closeGateAfterRun() {
-  if (!liveSessionId.value || running.value) return;
-  running.value = true;
-  error.value = "";
-  try {
-    const client = createEnergySimClient({ baseUrl: defaultEngineUrl() });
-    await closeGateAndRampDown(
-      client,
-      liveSessionId.value,
-      trial.value?.energyIntervalKwh ?? 0,
-    );
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
-  } finally {
-    running.value = false;
-    stopRequested.value = false;
-  }
+  if (!running.value) return;
+  stopRequested.value = true;
 }
 
 async function applyGateAndContinue() {
@@ -267,7 +245,7 @@ async function applyGateAndContinue() {
       <button
         type="button"
         class="btn"
-        :disabled="!liveSessionId || (!running && !trial)"
+        :disabled="!running"
         @click="requestStop"
       >
         ⏹ Stop
