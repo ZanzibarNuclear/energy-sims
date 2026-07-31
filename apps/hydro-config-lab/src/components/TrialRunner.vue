@@ -26,7 +26,11 @@ const DURATION_OPTIONS = [
 const STEP_SECS = 1;
 
 const durationSecs = ref(30);
-const spinUpDemo = ref(true);
+/**
+ * App-only demo sequence: start gate closed, then open (so the chart shows a full 0→target climb).
+ * Does not disable engine ramps — those always apply whenever power/speed targets change.
+ */
+const startFromClosedGate = ref(true);
 /** When true, wait ~1 real second per simulated second. Default: as fast as the engine allows. */
 const wallClockMode = ref(false);
 const running = ref(false);
@@ -39,21 +43,16 @@ const stopRequested = ref(false);
 
 const snapshot = computed(() => trial.value?.snapshot ?? null);
 
-/** Label matches spin-up demo mode, not run/idle state. */
-const stopButtonLabel = computed(() =>
-  spinUpDemo.value ? "⏹ Spin down" : "⏹ Stop",
-);
-
 const statusNote = computed(() => {
   if (running.value) {
     return wallClockMode.value
-      ? "Wall-clock mode: about 1 real second per simulated second. Use Stop / Spin down anytime."
+      ? "Wall-clock mode: about 1 real second per simulated second. Close gate anytime to ramp down."
       : "Fast mode: sim seconds as quickly as the engine can compute. Charts update each sim second.";
   }
   if (wallClockMode.value) {
-    return "Wall-clock mode is on — a 30 s run takes about half a minute of real time (good for watching ramps).";
+    return "Wall-clock mode: ~1 real second per sim second. Engine ramps (~20–25 s) always apply when power targets change.";
   }
-  return "Fast mode (default): sim time flies. Switch on wall clock to watch ramps in real time. Spin-up checkbox labels the stop control.";
+  return "Fast mode (default). Power/speed ramps are built into the engine (real spin-up/down). Optional: start with gate closed, then open.";
 });
 
 function hydroInputCmd(op: Partial<OperatorInputs> & Record<string, unknown>) {
@@ -141,10 +140,11 @@ async function runTrial() {
     const client = createEnergySimClient({ baseUrl: defaultEngineUrl() });
     const { sessionId } = await client.createSession(props.plant);
     liveSessionId.value = sessionId;
-    const mode = spinUpDemo.value ? "spinup" : "interval";
+    const mode = startFromClosedGate.value ? "spinup" : "interval";
     let energy = 0;
 
-    if (spinUpDemo.value) {
+    if (startFromClosedGate.value) {
+      // Demo: begin closed, then open so the climb is obvious from zero.
       await client.applyCommands(sessionId, [
         hydroInputCmd({
           ...props.operator,
@@ -163,6 +163,7 @@ async function runTrial() {
       ]);
       liveGate.value = props.operator.gateOpening > 0 ? props.operator.gateOpening : 1;
     } else {
+      // Gate already at configured opening — still ramps from actual 0 → target (engine dynamics).
       await client.applyCommands(sessionId, [
         hydroInputCmd({ ...props.operator, online: true }),
       ]);
@@ -291,9 +292,12 @@ async function applyGateAndContinue() {
           </option>
         </select>
       </label>
-      <label class="check">
-        <input v-model="spinUpDemo" type="checkbox" :disabled="running" />
-        Spin-up (gate 0 → open)
+      <label
+        class="check"
+        title="Start with the gate closed, then open it (demo sequence only). Engine ramps always apply."
+      >
+        <input v-model="startFromClosedGate" type="checkbox" :disabled="running" />
+        Start gate closed
       </label>
       <label class="check" title="Wait about one real second for each simulated second">
         <input v-model="wallClockMode" type="checkbox" :disabled="running" />
@@ -313,7 +317,7 @@ async function applyGateAndContinue() {
         :disabled="!liveSessionId || (!running && !trial)"
         @click="requestStop"
       >
-        {{ stopButtonLabel }}
+        ⏹ Close gate
       </button>
     </div>
 
