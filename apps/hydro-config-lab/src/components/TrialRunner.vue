@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import {
   createEnergySimClient,
   defaultEngineUrl,
+  type EnergySimClient,
   type Snapshot,
 } from "../lib/energySimClient";
 import type { HydroPlantJson, OperatorInputs } from "../lib/plantParams";
@@ -15,15 +16,34 @@ const props = defineProps<{
   enabled: boolean;
 }>();
 
-const durationSecs = ref(60);
+/** Durations that matter for ramp demos (~20–25 s spin-up). Longer is mostly flat. */
+const DURATION_OPTIONS = [30, 45, 60] as const;
+const STEP_SECS = 1;
+
+const durationSecs = ref(30);
 const spinUpDemo = ref(true);
 const running = ref(false);
 const error = ref("");
 const trial = ref<TrialResult | null>(null);
 const liveSessionId = ref<string | null>(null);
 const liveGate = ref(1);
+/** Set by Stop while Play is stepping through sim time. */
+const stopRequested = ref(false);
 
 const snapshot = computed(() => trial.value?.snapshot ?? null);
+const statusNote = computed(() => {
+  if (running.value) {
+    return "Advancing sim time in 1 s steps (wall clock is much faster than real life). Stop will freeze and spin down.";
+  }
+  if (trial.value && trial.value.samples.length >= 2) {
+    const flat =
+      trial.value.durationSecs > 35
+        ? " After the ramp, longer runs look flat because power is already at steady state."
+        : "";
+    return `Sim time is not wall time — a 60 s run finishes almost instantly on the machine.${flat}`;
+  }
+  return "Play advances simulated seconds as fast as the engine can compute. Ramps show in the first ~20–25 s.";
+});
 
 function hydroInputCmd(op: Partial<OperatorInputs> & Record<string, unknown>) {
   return {
@@ -31,8 +51,67 @@ function hydroInputCmd(op: Partial<OperatorInputs> & Record<string, unknown>) {
     gate_opening: op.gateOpening,
     debris_clog_fraction: op.debrisClogFraction,
     leakage_fraction: op.leakageFraction,
-    online: op.online,
+    online: op.online ?? true,
   };
+}
+
+function energyFrom(report: {
+  energyIntervalKwh?: number;
+  energy_interval_kwh?: number;
+}): number {
+  return Number(report.energyIntervalKwh ?? report.energy_interval_kwh ?? 0);
+}
+
+async function refreshTrial(
+  client: EnergySimClient,
+  sessionId: string,
+  snapshot: Snapshot,
+  energyIntervalKwh: number,
+  mode: "interval" | "spinup",
+) {
+  const hist = await client.history(sessionId);
+  const samples = samplesFromHistory(hist);
+  const lastT = samples.length ? samples[samples.length - 1]!.simTimeS : snapshot.simTimeS ?? 0;
+  trial.value = {
+    sessionId,
+    samples,
+    snapshot,
+    energyIntervalKwh,
+    durationSecs: lastT,
+    mode,
+  };
+}
+
+/**
+ * Advance sim time in small steps so the UI can update and Stop can interrupt.
+ */
+async function advanceInSteps(
+  client: EnergySimClient,
+  sessionId: string,
+  totalSecs: number,
+  mode: "interval" | "spinup",
+  energySoFar: number,
+): Promise<{ energy: number; stopped: boolean; snapshot: Snapshot | null }> {
+  let left = totalSecs;
+  let energy = energySoFar;
+  let lastSnap: Snapshot | null = trial.value?.snapshot ?? null;
+
+  while (left > 1e-9 && !stopRequested.value) {
+    const dt = Math.min(STEP_SECS, left);
+    const report = (await client.advance(sessionId, { durationSecs: dt })) as {
+      snapshot: Snapshot;
+      energyIntervalKwh?: number;
+      energy_interval_kwh?: number;
+    };
+    energy += energyFrom(report);
+    lastSnap = report.snapshot;
+    left -= dt;
+    await refreshTrial(client, sessionId, report.snapshot, energy, mode);
+    // Yield so Vue can paint and Stop can set the flag.
+    await new Promise((r) => setTimeout(r, 0));
+  }
+
+  return { energy, stopped: stopRequested.value, snapshot: lastSnap };
 }
 
 async function runTrial() {
@@ -41,16 +120,19 @@ async function runTrial() {
     return;
   }
   running.value = true;
+  stopRequested.value = false;
   error.value = "";
   trial.value = null;
   liveSessionId.value = null;
+
   try {
     const client = createEnergySimClient({ baseUrl: defaultEngineUrl() });
     const { sessionId } = await client.createSession(props.plant);
     liveSessionId.value = sessionId;
+    const mode = spinUpDemo.value ? "spinup" : "interval";
+    let energy = 0;
 
     if (spinUpDemo.value) {
-      // Start offline/closed, then open gate to show ramp curve.
       await client.applyCommands(sessionId, [
         hydroInputCmd({
           ...props.operator,
@@ -68,58 +150,81 @@ async function runTrial() {
         }),
       ]);
       liveGate.value = props.operator.gateOpening > 0 ? props.operator.gateOpening : 1;
-      const report = (await client.advance(sessionId, {
-        durationSecs: durationSecs.value,
-      })) as {
-        snapshot: Snapshot;
-        energyIntervalKwh?: number;
-        energy_interval_kwh?: number;
-      };
-      const hist = await client.history(sessionId);
-      trial.value = {
-        sessionId,
-        samples: samplesFromHistory(hist),
-        snapshot: report.snapshot,
-        energyIntervalKwh: Number(
-          report.energyIntervalKwh ?? report.energy_interval_kwh ?? 0,
-        ),
-        durationSecs: durationSecs.value + 1,
-        mode: "spinup",
-      };
     } else {
-      await client.applyCommands(sessionId, [hydroInputCmd(props.operator)]);
+      await client.applyCommands(sessionId, [
+        hydroInputCmd({ ...props.operator, online: true }),
+      ]);
       await client.start(sessionId);
       liveGate.value = props.operator.gateOpening;
-      const report = (await client.advance(sessionId, {
-        durationSecs: durationSecs.value,
-      })) as {
-        snapshot: Snapshot;
-        energyIntervalKwh?: number;
-        energy_interval_kwh?: number;
-      };
-      const hist = await client.history(sessionId);
-      trial.value = {
-        sessionId,
-        samples: samplesFromHistory(hist),
-        snapshot: report.snapshot,
-        energyIntervalKwh: Number(
-          report.energyIntervalKwh ?? report.energy_interval_kwh ?? 0,
-        ),
-        durationSecs: durationSecs.value,
-        mode: "interval",
-      };
+    }
+
+    const { energy: e2, stopped } = await advanceInSteps(
+      client,
+      sessionId,
+      durationSecs.value,
+      mode,
+      energy,
+    );
+    energy = e2;
+
+    if (stopped) {
+      await spinDown(client, sessionId, energy, mode);
     }
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
     liveSessionId.value = null;
   } finally {
     running.value = false;
+    stopRequested.value = false;
+  }
+}
+
+async function spinDown(
+  client: EnergySimClient,
+  sessionId: string,
+  energySoFar: number,
+  mode: "interval" | "spinup",
+) {
+  await client.stop(sessionId);
+  const down = Math.max(25, props.plant?.turbine.dynamics.powerRampDownS ?? 25);
+  // Step spin-down too so the chart animates the fall.
+  stopRequested.value = false;
+  await advanceInSteps(client, sessionId, down, mode, energySoFar);
+}
+
+function requestStop() {
+  if (running.value) {
+    stopRequested.value = true;
+    return;
+  }
+  // After a finished run, Stop still means “spin down from steady”.
+  void stopAfterRun();
+}
+
+async function stopAfterRun() {
+  if (!liveSessionId.value || running.value) return;
+  running.value = true;
+  error.value = "";
+  try {
+    const client = createEnergySimClient({ baseUrl: defaultEngineUrl() });
+    await spinDown(
+      client,
+      liveSessionId.value,
+      trial.value?.energyIntervalKwh ?? 0,
+      trial.value?.mode ?? "interval",
+    );
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    running.value = false;
+    stopRequested.value = false;
   }
 }
 
 async function applyGateAndContinue() {
-  if (!liveSessionId.value) return;
+  if (!liveSessionId.value || running.value) return;
   running.value = true;
+  stopRequested.value = false;
   error.value = "";
   try {
     const client = createEnergySimClient({ baseUrl: defaultEngineUrl() });
@@ -130,49 +235,18 @@ async function applyGateAndContinue() {
         online: true,
       }),
     ]);
-    const report = (await client.advance(liveSessionId.value, {
-      durationSecs: 30,
-    })) as { snapshot: Snapshot; energyIntervalKwh?: number };
-    const hist = await client.history(liveSessionId.value);
-    trial.value = {
-      sessionId: liveSessionId.value,
-      samples: samplesFromHistory(hist),
-      snapshot: report.snapshot,
-      energyIntervalKwh: Number(report.energyIntervalKwh ?? 0),
-      durationSecs: (trial.value?.durationSecs ?? 0) + 30,
-      mode: trial.value?.mode ?? "interval",
-    };
+    await advanceInSteps(
+      client,
+      liveSessionId.value,
+      30,
+      trial.value?.mode ?? "interval",
+      trial.value?.energyIntervalKwh ?? 0,
+    );
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
   } finally {
     running.value = false;
-  }
-}
-
-async function stopTrial() {
-  if (!liveSessionId.value) return;
-  running.value = true;
-  error.value = "";
-  try {
-    const client = createEnergySimClient({ baseUrl: defaultEngineUrl() });
-    await client.stop(liveSessionId.value);
-    // Advance to show spin-down curve.
-    const report = (await client.advance(liveSessionId.value, {
-      durationSecs: Math.max(25, props.plant?.turbine.dynamics.powerRampDownS ?? 25),
-    })) as { snapshot: Snapshot; energyIntervalKwh?: number };
-    const hist = await client.history(liveSessionId.value);
-    trial.value = {
-      sessionId: liveSessionId.value,
-      samples: samplesFromHistory(hist),
-      snapshot: report.snapshot,
-      energyIntervalKwh: Number(report.energyIntervalKwh ?? 0),
-      durationSecs: (trial.value?.durationSecs ?? 0) + 25,
-      mode: trial.value?.mode ?? "interval",
-    };
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
-  } finally {
-    running.value = false;
+    stopRequested.value = false;
   }
 }
 </script>
@@ -184,14 +258,12 @@ async function stopTrial() {
       <label class="field-inline">
         Duration
         <select v-model.number="durationSecs" :disabled="running">
-          <option :value="30">30 s</option>
-          <option :value="60">60 s</option>
-          <option :value="120">120 s</option>
+          <option v-for="d in DURATION_OPTIONS" :key="d" :value="d">{{ d }} s</option>
         </select>
       </label>
       <label class="check">
         <input v-model="spinUpDemo" type="checkbox" :disabled="running" />
-        Spin-up demo (gate 0 → open)
+        Spin-up (gate 0 → open)
       </label>
       <button
         type="button"
@@ -204,15 +276,17 @@ async function stopTrial() {
       <button
         type="button"
         class="btn"
-        :disabled="!liveSessionId || running"
-        @click="stopTrial"
+        :disabled="!liveSessionId || (!running && !trial)"
+        @click="requestStop"
       >
-        ⏹ Stop
+        {{ running ? "⏹ Stop" : "⏹ Spin down" }}
       </button>
     </div>
 
+    <p class="status-note">{{ statusNote }}</p>
+
     <p v-if="!enabled" class="placeholder">
-      Finish the site layout (intake + turbine) on the Layout tab, then play a run against
+      Finish Layout and Equipment, then play a run against
       <code>energy-sim-server</code>.
     </p>
     <p v-else-if="error" class="err">{{ error }}</p>
@@ -224,11 +298,11 @@ async function stopTrial() {
       </div>
       <div>
         <span class="k">P_e actual</span>
-        <span class="v">{{ Number(snapshot.electricalPowerKw).toFixed(3) }} kW</span>
+        <span class="v">{{ Number(snapshot.electricalPowerKw).toFixed(1) }} kW</span>
       </div>
       <div>
         <span class="k">P_e target</span>
-        <span class="v">{{ Number(snapshot.targetElectricalPowerKw).toFixed(3) }} kW</span>
+        <span class="v">{{ Number(snapshot.targetElectricalPowerKw).toFixed(1) }} kW</span>
       </div>
       <div>
         <span class="k">Speed</span>
@@ -236,7 +310,7 @@ async function stopTrial() {
       </div>
       <div>
         <span class="k">H_net</span>
-        <span class="v">{{ Number(snapshot.netHeadM).toFixed(2) }} m</span>
+        <span class="v">{{ Number(snapshot.netHeadM).toFixed(1) }} m</span>
       </div>
       <div>
         <span class="k">Energy Δ</span>
@@ -248,7 +322,7 @@ async function stopTrial() {
       </div>
     </div>
 
-    <div v-if="liveSessionId" class="mid">
+    <div v-if="liveSessionId && !running" class="mid">
       <label class="field-inline">
         Gate
         <input
@@ -257,23 +331,17 @@ async function stopTrial() {
           min="0"
           max="1"
           step="0.05"
-          :disabled="running"
         />
       </label>
-      <button type="button" class="btn" :disabled="running" @click="applyGateAndContinue">
+      <button type="button" class="btn" @click="applyGateAndContinue">
         Set gate + 30 s
       </button>
-      <span class="hint">e.g. set 0 for drought / closed, or 1 for full open</span>
     </div>
 
     <div class="charts">
       <SeriesChart :samples="trial?.samples ?? []" series="power" />
       <SeriesChart :samples="trial?.samples ?? []" series="speed" />
     </div>
-
-    <ul v-if="snapshot?.warnings?.length" class="warn">
-      <li v-for="(w, i) in snapshot.warnings" :key="i">{{ w }}</li>
-    </ul>
   </section>
 </template>
 
@@ -351,6 +419,13 @@ async function stopTrial() {
   color: #fff;
 }
 
+.status-note {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--muted-fg);
+}
+
 .placeholder {
   margin: 0;
   font-size: 0.85rem;
@@ -401,11 +476,6 @@ async function stopTrial() {
   gap: 0.5rem;
 }
 
-.hint {
-  font-size: 0.75rem;
-  color: var(--muted-fg);
-}
-
 .charts {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -416,12 +486,5 @@ async function stopTrial() {
   .charts {
     grid-template-columns: 1fr;
   }
-}
-
-.warn {
-  margin: 0;
-  padding-left: 1.1rem;
-  font-size: 0.78rem;
-  color: #b8860b;
 }
 </style>
