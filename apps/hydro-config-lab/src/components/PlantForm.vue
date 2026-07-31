@@ -158,7 +158,7 @@ const velocityHint = computed(() => {
           For ~{{ TARGET_VELOCITY_MS }} m/s at this flow, try
           <strong>{{ suggestedCm.toFixed(0) }} cm</strong> diameter.
         </p>
-        <button type="button" class="btn" @click="applySuggestedDiameter">Use suggested Ø</button>
+        <button type="button" class="btn" @click="applySuggestedDiameter">Use suggested diameter</button>
       </div>
 
       <label class="field">
