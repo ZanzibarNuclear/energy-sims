@@ -16,8 +16,13 @@ const props = defineProps<{
   enabled: boolean;
 }>();
 
-/** Durations that matter for ramp demos (~20–25 s spin-up). Longer is mostly flat. */
-const DURATION_OPTIONS = [30, 45, 60] as const;
+/** Sim-time durations. Longer runs are mostly flat after the ramp, but give wall time to hit Stop. */
+const DURATION_OPTIONS = [
+  { secs: 30, label: "30 s" },
+  { secs: 45, label: "45 s" },
+  { secs: 60, label: "60 s" },
+  { secs: 600, label: "10 min" },
+] as const;
 const STEP_SECS = 1;
 
 const durationSecs = ref(30);
@@ -258,7 +263,9 @@ async function applyGateAndContinue() {
       <label class="field-inline">
         Duration
         <select v-model.number="durationSecs" :disabled="running">
-          <option v-for="d in DURATION_OPTIONS" :key="d" :value="d">{{ d }} s</option>
+          <option v-for="d in DURATION_OPTIONS" :key="d.secs" :value="d.secs">
+            {{ d.label }}
+          </option>
         </select>
       </label>
       <label class="check">
