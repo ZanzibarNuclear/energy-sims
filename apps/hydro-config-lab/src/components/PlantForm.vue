@@ -1,5 +1,24 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
+import {
+  DIAMETER_MAX_M,
+  DIAMETER_MIN_M,
+  DIAMETER_STEP_M,
+  ETA_MAX,
+  ETA_MIN,
+  ETA_STEP,
+  FIXED_BASE_MINOR_K,
+  FIXED_FRICTION,
+  FLOW_MAX_M3S,
+  FLOW_MIN_M3S,
+  FLOW_STEP_M3S,
+  clamp,
+  lsToM3s,
+  m3sToLs,
+  meanVelocityMs,
+  suggestedDiameterM,
+  TARGET_VELOCITY_MS,
+} from "../lib/designDefaults";
 import type { OperatorInputs, PlantParams } from "../lib/plantParams";
 
 const props = defineProps<{
@@ -12,423 +31,259 @@ const emit = defineEmits<{
   "update:operator": [OperatorInputs];
 }>();
 
-type SectionId = "config" | "intake" | "penstock" | "turbine" | "generator";
-
-const sections: {
-  id: SectionId;
-  label: string;
-  blurb: string;
-}[] = [
-  { id: "config", label: "Config", blurb: "Name metadata for this site" },
-  { id: "intake", label: "Intake", blurb: "Flow into the penstock" },
-  { id: "penstock", label: "Penstock", blurb: "Pipe size, friction, leakage" },
-  { id: "turbine", label: "Turbine", blurb: "η, flow limits, gate, ramps" },
-  { id: "generator", label: "Generator", blurb: "η and nameplate cap" },
-];
-
-const active = ref<SectionId>("intake");
-
-const activeMeta = computed(() => sections.find((s) => s.id === active.value)!);
-
 function plainClone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T;
 }
 
-function setNum(path: string[], raw: string) {
-  const n = Number(raw);
-  if (!Number.isFinite(n) && raw !== "") return;
-  const next = plainClone(props.params);
-  let cur: Record<string, unknown> = next as unknown as Record<string, unknown>;
-  for (let i = 0; i < path.length - 1; i++) {
-    cur = cur[path[i]!] as Record<string, unknown>;
-  }
-  cur[path[path.length - 1]!] = n;
+/** Overall η = η_t × η_g; we keep η_g fixed and fold design into η_t for simplicity. */
+const overallEta = computed(() =>
+  clamp(props.params.turbine.efficiency * props.params.generator.efficiency, ETA_MIN, ETA_MAX),
+);
+
+const flowLs = computed(() => m3sToLs(props.params.stream.availableFlowM3s));
+const diameterCm = computed(() => props.params.penstock.diameterM * 100);
+const velocity = computed(() =>
+  meanVelocityMs(props.params.stream.availableFlowM3s, props.params.penstock.diameterM),
+);
+const suggestedD = computed(() =>
+  suggestedDiameterM(props.params.stream.availableFlowM3s, TARGET_VELOCITY_MS),
+);
+const suggestedCm = computed(() => suggestedD.value * 100);
+
+function applyFixedHidden(next: PlantParams) {
+  next.penstock.frictionFactor = FIXED_FRICTION;
+  next.penstock.baseMinorLossCoefficient = FIXED_BASE_MINOR_K;
   next.penstock.overrideHead = false;
   next.penstock.overrideLength = false;
   next.penstock.overrideMinorLoss = false;
-  emit("update:params", next);
+  next.generator.efficiency = 1;
+  next.generator.ratedPowerKw = 1e9;
+  next.turbine.designFlowM3s = next.stream.availableFlowM3s;
+  next.turbine.maxSafeFlowM3s = next.stream.availableFlowM3s * 10;
+  // Gate full open for design calculations; Run can still change operator later if needed.
+  return next;
 }
 
-function setStr(path: string[], raw: string) {
+function setFlowLs(raw: string) {
+  const ls = Number(raw);
+  if (!Number.isFinite(ls)) return;
+  const q = clamp(lsToM3s(ls), FLOW_MIN_M3S, FLOW_MAX_M3S);
   const next = plainClone(props.params);
-  let cur: Record<string, unknown> = next as unknown as Record<string, unknown>;
-  for (let i = 0; i < path.length - 1; i++) {
-    cur = cur[path[i]!] as Record<string, unknown>;
-  }
-  cur[path[path.length - 1]!] = raw;
-  emit("update:params", next);
+  next.stream.availableFlowM3s = q;
+  next.turbine.designFlowM3s = q;
+  emit("update:params", applyFixedHidden(next));
+  emit("update:operator", {
+    gateOpening: 1,
+    debrisClogFraction: 0,
+    leakageFraction: 0,
+    online: true,
+  });
 }
 
-function setOpNum(key: keyof OperatorInputs, raw: string) {
-  const n = Number(raw);
-  if (!Number.isFinite(n) && raw !== "") return;
-  // Online is session lifecycle (Run tab), not a hardware setting.
-  emit("update:operator", { ...props.operator, [key]: n, online: true });
+function setDiameterCm(raw: string) {
+  const cm = Number(raw);
+  if (!Number.isFinite(cm)) return;
+  const d = clamp(cm / 100, DIAMETER_MIN_M, DIAMETER_MAX_M);
+  const next = plainClone(props.params);
+  next.penstock.diameterM = d;
+  emit("update:params", applyFixedHidden(next));
 }
 
-function summary(id: SectionId): string {
-  const p = props.params;
-  const o = props.operator;
-  switch (id) {
-    case "config":
-      return p.id || "—";
-    case "intake":
-      return `${p.stream.availableFlowM3s} m³/s · debris ${o.debrisClogFraction}`;
-    case "penstock":
-      return `Ø ${p.penstock.diameterM} m · leak ${o.leakageFraction}`;
-    case "turbine":
-      return `η ${p.turbine.efficiency} · gate ${o.gateOpening}`;
-    case "generator":
-      return `η ${p.generator.efficiency}`;
-  }
+function setOverallEta(raw: string) {
+  const eta = Number(raw);
+  if (!Number.isFinite(eta)) return;
+  const next = plainClone(props.params);
+  // Store all of overall η on the turbine; generator η = 1 so product is overall.
+  next.turbine.efficiency = clamp(eta, ETA_MIN, ETA_MAX);
+  next.generator.efficiency = 1;
+  emit("update:params", applyFixedHidden(next));
 }
+
+function applySuggestedDiameter() {
+  const next = plainClone(props.params);
+  next.penstock.diameterM = suggestedD.value;
+  emit("update:params", applyFixedHidden(next));
+}
+
+const velocityHint = computed(() => {
+  const v = velocity.value;
+  if (v < 0.8) return "Slow flow — large pipe for this Q (low friction, bulkier).";
+  if (v > 3) return "Fast flow — small pipe or high Q (head loss climbs quickly).";
+  return "Typical micro-hydro range (~1–2.5 m/s).";
+});
 </script>
 
 <template>
-  <div class="equipment">
-    <nav class="nav" aria-label="Equipment parts">
-      <button
-        v-for="s in sections"
-        :key="s.id"
-        type="button"
-        class="nav-item"
-        :class="{ active: active === s.id }"
-        @click="active = s.id"
-      >
-        <span class="nav-label">{{ s.label }}</span>
-        <span class="nav-summary">{{ summary(s.id) }}</span>
-      </button>
-    </nav>
+  <div class="design">
+    <header class="head">
+      <h2>Design choices</h2>
+      <p>
+        Layout already set head, pipe length, and bend losses. Here you only size the intake flow
+        and penstock, plus overall plant efficiency.
+      </p>
+    </header>
 
-    <div class="detail">
-      <header class="detail-head">
-        <h2>{{ activeMeta.label }}</h2>
-        <p>{{ activeMeta.blurb }}</p>
-      </header>
+    <div class="fields">
+      <label class="field">
+        <span>Intake flow (L/s)</span>
+        <input
+          type="number"
+          :min="m3sToLs(FLOW_MIN_M3S)"
+          :max="m3sToLs(FLOW_MAX_M3S)"
+          :step="m3sToLs(FLOW_STEP_M3S)"
+          :value="flowLs.toFixed(1)"
+          @change="setFlowLs(($event.target as HTMLInputElement).value)"
+        />
+        <span class="hint">{{ FLOW_MIN_M3S * 1000 }}–{{ FLOW_MAX_M3S * 1000 }} L/s diverted into the intake</span>
+      </label>
 
-      <!-- Config metadata -->
-      <div v-if="active === 'config'" class="fields">
-        <label class="field wide">
-          <span>Config id</span>
-          <input
-            type="text"
-            :value="params.id"
-            @change="setStr(['id'], ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-        <label class="field wide">
-          <span>Label</span>
-          <input
-            type="text"
-            :value="params.label"
-            @change="setStr(['label'], ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-        <p class="note">
-          Identifies this configuration in saves and engine plant JSON. Not a physical component.
+      <label class="field">
+        <span>Penstock diameter (cm)</span>
+        <input
+          type="number"
+          :min="DIAMETER_MIN_M * 100"
+          :max="DIAMETER_MAX_M * 100"
+          :step="DIAMETER_STEP_M * 100"
+          :value="diameterCm.toFixed(0)"
+          @change="setDiameterCm(($event.target as HTMLInputElement).value)"
+        />
+        <span class="hint">
+          Mean velocity {{ velocity.toFixed(2) }} m/s.
+          {{ velocityHint }}
+        </span>
+      </label>
+
+      <div class="suggest">
+        <p>
+          For ~{{ TARGET_VELOCITY_MS }} m/s at this flow, try
+          <strong>{{ suggestedCm.toFixed(0) }} cm</strong> diameter.
         </p>
+        <button type="button" class="btn" @click="applySuggestedDiameter">Use suggested Ø</button>
       </div>
 
-      <!-- Intake -->
-      <div v-else-if="active === 'intake'" class="fields">
-        <label class="field">
-          <span>Intake flow available (m³/s)</span>
-          <input
-            type="number"
-            step="0.001"
-            min="0"
-            :value="params.stream.availableFlowM3s"
-            @change="setNum(['stream', 'availableFlowM3s'], ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-        <label class="field">
-          <span>Debris / screen clog (0–1)</span>
-          <input
-            type="number"
-            step="0.05"
-            min="0"
-            max="1"
-            :value="operator.debrisClogFraction"
-            @change="setOpNum('debrisClogFraction', ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-        <p class="note">
-          Flow into the intake (not the whole creek). Debris reduces capture and adds intake head
-          loss at the trash rack / screen.
-        </p>
-      </div>
-
-      <!-- Penstock -->
-      <div v-else-if="active === 'penstock'" class="fields">
-        <label class="field">
-          <span>Diameter (m)</span>
-          <input
-            type="number"
-            step="0.01"
-            min="0.01"
-            :value="params.penstock.diameterM"
-            @change="setNum(['penstock', 'diameterM'], ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-        <label class="field">
-          <span>Friction factor f</span>
-          <input
-            type="number"
-            step="0.001"
-            min="0"
-            :value="params.penstock.frictionFactor"
-            @change="
-              setNum(['penstock', 'frictionFactor'], ($event.target as HTMLInputElement).value)
-            "
-          />
-        </label>
-        <label class="field">
-          <span>Base minor K (entrance)</span>
-          <input
-            type="number"
-            step="0.05"
-            min="0"
-            :value="params.penstock.baseMinorLossCoefficient"
-            @change="
-              setNum(
-                ['penstock', 'baseMinorLossCoefficient'],
-                ($event.target as HTMLInputElement).value,
-              )
-            "
-          />
-        </label>
-        <label class="field">
-          <span>Leakage (0–1)</span>
-          <input
-            type="number"
-            step="0.05"
-            min="0"
-            max="1"
-            :value="operator.leakageFraction"
-            @change="setOpNum('leakageFraction', ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-        <p class="note">
-          Head and pipe length come from Layout. Each bend adds minor-loss K from its turn angle
-          (no per-bend editor). Leakage drops flow before the turbine, not head.
-        </p>
-      </div>
-
-      <!-- Turbine -->
-      <div v-else-if="active === 'turbine'" class="fields">
-        <label class="field">
-          <span>Efficiency η</span>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            max="1"
-            :value="params.turbine.efficiency"
-            @change="setNum(['turbine', 'efficiency'], ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-        <label class="field">
-          <span>Gate / admission (0–1)</span>
-          <input
-            type="number"
-            step="0.05"
-            min="0"
-            max="1"
-            :value="operator.gateOpening"
-            @change="setOpNum('gateOpening', ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-        <label class="field">
-          <span>Design flow (m³/s)</span>
-          <input
-            type="number"
-            step="0.001"
-            :value="params.turbine.designFlowM3s"
-            @change="setNum(['turbine', 'designFlowM3s'], ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-        <label class="field">
-          <span>Design speed (rpm)</span>
-          <input
-            type="number"
-            step="1"
-            :value="params.turbine.designSpeedRpm"
-            @change="
-              setNum(['turbine', 'designSpeedRpm'], ($event.target as HTMLInputElement).value)
-            "
-          />
-        </label>
-        <label class="field">
-          <span>Power ramp-up (s)</span>
-          <input
-            type="number"
-            step="1"
-            :value="params.turbine.dynamics.powerRampUpS"
-            @change="
-              setNum(
-                ['turbine', 'dynamics', 'powerRampUpS'],
-                ($event.target as HTMLInputElement).value,
-              )
-            "
-          />
-        </label>
-        <label class="field">
-          <span>Power ramp-down (s)</span>
-          <input
-            type="number"
-            step="1"
-            :value="params.turbine.dynamics.powerRampDownS"
-            @change="
-              setNum(
-                ['turbine', 'dynamics', 'powerRampDownS'],
-                ($event.target as HTMLInputElement).value,
-              )
-            "
-          />
-        </label>
-        <p class="note">
-          Gate is the admission valve (how much of the available intake flow is admitted to the
-          turbine). Online/offline is controlled on the Run tab when you play or stop a session.
-        </p>
-      </div>
-
-      <!-- Generator -->
-      <div v-else-if="active === 'generator'" class="fields">
-        <label class="field">
-          <span>Efficiency η</span>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            max="1"
-            :value="params.generator.efficiency"
-            @change="
-              setNum(['generator', 'efficiency'], ($event.target as HTMLInputElement).value)
-            "
-          />
-        </label>
-        <p class="note">
-          Electrical efficiency only. The lab does not apply a generator nameplate cap so you can
-          see full power from the layout and losses.
-        </p>
-      </div>
+      <label class="field">
+        <span>Overall efficiency η (turbine × generator)</span>
+        <input
+          type="number"
+          :min="ETA_MIN"
+          :max="ETA_MAX"
+          :step="ETA_STEP"
+          :value="overallEta.toFixed(2)"
+          @change="setOverallEta(($event.target as HTMLInputElement).value)"
+        />
+        <span class="hint">Teaching default ~0.7. Higher = better machines, not more water.</span>
+      </label>
     </div>
+
+    <p class="fixed-note">
+      Fixed for now (not design knobs): pipe friction f = {{ FIXED_FRICTION }}, entrance K =
+      {{ FIXED_BASE_MINOR_K }}, full gate, no debris or leakage. Bend losses still come from Layout.
+    </p>
   </div>
 </template>
 
 <style scoped>
-.equipment {
-  display: grid;
-  grid-template-columns: minmax(10rem, 13rem) minmax(0, 1fr);
-  gap: 0;
-  min-height: 14rem;
+.design {
+  padding: 1rem 1.1rem 1.15rem;
   border: 1px solid var(--border);
   border-radius: 10px;
-  overflow: hidden;
   background: var(--panel);
 }
 
-@media (max-width: 640px) {
-  .equipment {
-    grid-template-columns: 1fr;
-  }
-}
-
-.nav {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  background: var(--toolbar);
-  border-right: 1px solid var(--border);
-}
-
-.nav-item {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.1rem;
-  padding: 0.65rem 0.75rem;
-  border: none;
-  border-bottom: 1px solid var(--border);
-  background: transparent;
-  color: var(--fg);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.nav-item:hover {
-  background: color-mix(in srgb, var(--panel) 60%, transparent);
-}
-
-.nav-item.active {
-  background: var(--panel);
-  box-shadow: inset 3px 0 0 var(--accent);
-}
-
-.nav-label {
-  font-size: 0.9rem;
+.head h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
   font-weight: 650;
 }
 
-.nav-summary {
-  font-size: 0.72rem;
+.head p {
+  margin: 0 0 0.9rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
   color: var(--muted-fg);
-  font-variant-numeric: tabular-nums;
-}
-
-.detail {
-  padding: 0.85rem 1rem 1rem;
-}
-
-.detail-head {
-  margin-bottom: 0.75rem;
-}
-
-.detail-head h2 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 650;
-}
-
-.detail-head p {
-  margin: 0.15rem 0 0;
-  font-size: 0.8rem;
-  color: var(--muted-fg);
+  max-width: 40rem;
 }
 
 .fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.55rem 0.75rem;
+  gap: 0.85rem 1.25rem;
   align-items: start;
+}
+
+@media (max-width: 640px) {
+  .fields {
+    grid-template-columns: 1fr;
+  }
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  font-size: 0.72rem;
+  gap: 0.25rem;
+  font-size: 0.8rem;
   color: var(--muted-fg);
 }
 
-.field.wide {
-  grid-column: 1 / -1;
+.field span:first-child {
+  font-weight: 600;
+  color: var(--fg);
+  font-size: 0.88rem;
 }
 
 .field input {
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 1rem;
   color: var(--fg);
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 0.35rem 0.45rem;
+  padding: 0.45rem 0.55rem;
+  max-width: 12rem;
 }
 
-.note {
+.hint {
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--muted-fg);
+}
+
+.suggest {
   grid-column: 1 / -1;
-  margin: 0.15rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.suggest p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--fg);
+}
+
+.btn {
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.btn:hover {
+  filter: brightness(1.06);
+}
+
+.fixed-note {
+  margin: 1rem 0 0;
   font-size: 0.78rem;
   line-height: 1.4;
   color: var(--muted-fg);

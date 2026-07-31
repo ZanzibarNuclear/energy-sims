@@ -87,13 +87,16 @@ export type HydroPlantJson = {
 };
 
 export function defaultPlantParams(): PlantParams {
+  // Q=40 L/s, D≈18 cm → ~1.5 m/s (see designDefaults.suggestedDiameterM).
+  const q = 0.04;
+  const d = 0.18;
+  const eta = 0.7;
   return {
     id: "lab-plant",
     label: "Lab plant",
-    // ~40 L/s through a 25 cm penstock → low velocity, H_loss ≪ H_gross on the default site.
-    stream: { availableFlowM3s: 0.04 },
+    stream: { availableFlowM3s: q },
     penstock: {
-      diameterM: 0.25,
+      diameterM: d,
       frictionFactor: 0.02,
       baseMinorLossCoefficient: 0.5,
       overrideMinorLoss: false,
@@ -104,10 +107,9 @@ export function defaultPlantParams(): PlantParams {
       overrideLengthM: 180,
     },
     turbine: {
-      efficiency: 0.75,
-      designFlowM3s: 0.04,
-      // Soft design point only (speed model); not used as a hard flow cap in the lab.
-      maxSafeFlowM3s: 0.06,
+      efficiency: eta,
+      designFlowM3s: q,
+      maxSafeFlowM3s: q * 10,
       designSpeedRpm: 1000,
       dynamics: {
         speedRampUpS: 20,
@@ -117,8 +119,7 @@ export function defaultPlantParams(): PlantParams {
       },
     },
     generator: {
-      efficiency: 0.92,
-      // Stored for export compatibility; lab evaluation does not clip to this.
+      efficiency: 1,
       ratedPowerKw: 1e9,
     },
     fluid: {

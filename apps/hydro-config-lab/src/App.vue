@@ -29,7 +29,7 @@ const tabs: { id: TabId; step: string; label: string }[] = [
 
 const instructions: Record<TabId, string> = {
   layout: "Lay out the penstock so that it runs downhill from intake to turbine.",
-  equipment: "Set intake flow, pipe, turbine, and generator. Head and length stay from Layout.",
+  equipment: "Choose intake flow, penstock diameter, and overall efficiency. Head and length stay from Layout.",
   calc: "See layout geometry, steady engine preview, and the power equation with your numbers.",
   run: "Play a timed run against the engine and watch power and speed ramp.",
 };
