@@ -16,11 +16,18 @@ export type EquationStep = {
 
 export type LossBreakdown = {
   frictionM: number;
+  /** Entrance / base K contribution */
+  entranceM: number;
+  /** Bend K contribution (from Layout turn angles) */
+  bendM: number;
+  /** entrance + bend (total minor) */
   minorM: number;
   debrisM: number;
   totalM: number;
   velocityMs: number;
   velocityHeadM: number;
+  baseMinorK: number;
+  bendMinorK: number;
 };
 
 export type PowerBreakdown = {
@@ -29,6 +36,7 @@ export type PowerBreakdown = {
   flowM3s: number;
   grossHeadM: number;
   netHeadM: number;
+  pipeLengthM: number;
   losses: LossBreakdown;
   /** True when friction/minor losses consume all gross head. */
   headStarved: boolean;
@@ -44,7 +52,8 @@ function lossBreakdown(
   lengthM: number,
   diameterM: number,
   frictionFactor: number,
-  minorK: number,
+  baseMinorK: number,
+  bendMinorK: number,
   debrisClog: number,
   g: number,
 ): LossBreakdown {
@@ -52,26 +61,36 @@ function lossBreakdown(
   if (diameterM <= 0 || flow <= 0 || g <= 0) {
     return {
       frictionM: 0,
+      entranceM: 0,
+      bendM: 0,
       minorM: 0,
       debrisM: 0,
       totalM: 0,
       velocityMs: 0,
       velocityHeadM: 0,
+      baseMinorK,
+      bendMinorK,
     };
   }
   const a = areaM2(diameterM);
   const v = flow / a;
   const vh = (v * v) / (2 * g);
   const frictionM = frictionFactor * (lengthM / diameterM) * vh;
-  const minorM = minorK * vh;
+  const entranceM = baseMinorK * vh;
+  const bendM = bendMinorK * vh;
+  const minorM = entranceM + bendM;
   const debrisM = 10 * clog * vh;
   return {
     frictionM,
+    entranceM,
+    bendM,
     minorM,
     debrisM,
     totalM: frictionM + minorM + debrisM,
     velocityMs: v,
     velocityHeadM: vh,
+    baseMinorK,
+    bendMinorK,
   };
 }
 
@@ -91,7 +110,8 @@ export function computePowerBreakdown(
   const L = derived.lengthM;
   const D = params.penstock.diameterM;
   const f = params.penstock.frictionFactor;
-  const K = derived.minorLossCoefficient;
+  const baseK = derived.baseMinorK;
+  const bendK = derived.bendMinorK;
   const qAvail = params.stream.availableFlowM3s;
   const gate = Math.min(1, Math.max(0, operator.gateOpening));
   const leak = Math.min(1, Math.max(0, operator.leakageFraction));
@@ -101,7 +121,7 @@ export function computePowerBreakdown(
   const idealElectricalKw = (idealHydW / 1000) * eta;
 
   const flow = qAvail * gate * (1 - 0.5 * clog) * (1 - leak);
-  const losses = lossBreakdown(flow, L, D, f, K, clog, g);
+  const losses = lossBreakdown(flow, L, D, f, baseK, bendK, clog, g);
   const netHead = Math.max(0, Hgross - losses.totalM);
   const headStarved = losses.totalM > Hgross && flow > 0 && Hgross >= 0;
   const hydraulicKw = (rho * g * flow * netHead) / 1000;
@@ -149,6 +169,7 @@ export function computePowerBreakdown(
     flowM3s: flow,
     grossHeadM: Hgross,
     netHeadM: netHead,
+    pipeLengthM: L,
     losses,
     headStarved,
     steps,

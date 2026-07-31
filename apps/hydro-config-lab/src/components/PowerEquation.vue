@@ -77,11 +77,15 @@ function joinFactorsHtml(parts: string[]): string {
     <div class="loss-card">
       <h4>Head loss breakdown</h4>
       <p class="loss-note">
-        Losses scale with velocity head v²/(2g). Small diameter or large Q makes v large, so
-        H<sub>loss</sub> can exceed H<sub>gross</sub> — then H<sub>net</sub> is 0 (pipe cannot
-        deliver that flow over this head).
+        Losses scale with velocity head v²/(2g). Bends matter in two ways: they lengthen the pipe
+        (more friction) and add turn loss K (extra minor head). At low velocity that second part is
+        often only centimeters of head.
       </p>
       <dl>
+        <div>
+          <dt>Pipe length L</dt>
+          <dd>{{ breakdown.pipeLengthM.toFixed(1) }} m</dd>
+        </div>
         <div>
           <dt>Velocity</dt>
           <dd>{{ breakdown.losses.velocityMs.toFixed(2) }} m/s</dd>
@@ -91,10 +95,14 @@ function joinFactorsHtml(parts: string[]): string {
           <dd>{{ breakdown.losses.frictionM.toFixed(2) }} m</dd>
         </div>
         <div>
-          <dt>Minor h<sub>m</sub> (K)</dt>
-          <dd>{{ breakdown.losses.minorM.toFixed(2) }} m</dd>
+          <dt>Entrance (K = {{ breakdown.losses.baseMinorK.toFixed(2) }})</dt>
+          <dd>{{ breakdown.losses.entranceM.toFixed(2) }} m</dd>
         </div>
         <div>
+          <dt>Bends (K = {{ breakdown.losses.bendMinorK.toFixed(2) }})</dt>
+          <dd>{{ breakdown.losses.bendM.toFixed(2) }} m</dd>
+        </div>
+        <div v-if="breakdown.losses.debrisM > 0.005">
           <dt>Debris</dt>
           <dd>{{ breakdown.losses.debrisM.toFixed(2) }} m</dd>
         </div>
@@ -103,10 +111,14 @@ function joinFactorsHtml(parts: string[]): string {
           <dd>{{ breakdown.losses.totalM.toFixed(2) }} m</dd>
         </div>
       </dl>
+      <p v-if="breakdown.losses.bendMinorK < 0.01" class="loss-note">
+        No significant bend angle yet. Drag bends off the straight line so the turn is sharper;
+        K and path length will both rise.
+      </p>
       <p v-if="breakdown.headStarved" class="starved" role="status">
         H<sub>loss</sub> ({{ breakdown.losses.totalM.toFixed(1) }} m) is greater than
         H<sub>gross</sub> ({{ breakdown.grossHeadM.toFixed(1) }} m). Increase diameter, reduce
-        intake flow, shorten the run, or ease bends/friction so the penstock can pass the flow.
+        intake flow, shorten the run, or ease bends so the penstock can pass the flow.
       </p>
     </div>
 

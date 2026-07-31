@@ -89,13 +89,16 @@ const displayWarnings = computed(() =>
           <dd>{{ derived.lengthM.toFixed(1) }} m</dd>
         </div>
         <div>
-          <dt>Minor K</dt>
-          <dd>
-            {{ derived.minorLossCoefficient.toFixed(2) }}
-            <span class="dim">
-              ({{ derived.baseMinorK.toFixed(2) }}+{{ derived.bendMinorK.toFixed(2) }})
-            </span>
-          </dd>
+          <dt>Entrance K</dt>
+          <dd>{{ derived.baseMinorK.toFixed(2) }}</dd>
+        </div>
+        <div>
+          <dt>Bend K</dt>
+          <dd>{{ derived.bendMinorK.toFixed(2) }}</dd>
+        </div>
+        <div>
+          <dt>Total minor K</dt>
+          <dd>{{ derived.minorLossCoefficient.toFixed(2) }}</dd>
         </div>
       </dl>
     </section>
