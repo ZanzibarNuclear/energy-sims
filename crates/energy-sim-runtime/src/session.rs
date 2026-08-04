@@ -478,6 +478,22 @@ impl Session {
     pub fn load_checkpoint(path: impl AsRef<Path>) -> Result<Self> {
         let file = std::fs::File::open(path)?;
         let doc: CheckpointDocument = serde_json::from_reader(file)?;
+        Self::from_checkpoint_doc(doc)
+    }
+
+    /// Restore a session from a checkpoint JSON string (WASM / remote hosts).
+    pub fn from_checkpoint_json(json: &str) -> Result<Self> {
+        let doc: CheckpointDocument = serde_json::from_str(json)?;
+        Self::from_checkpoint_doc(doc)
+    }
+
+    /// Restore a session from a checkpoint JSON value.
+    pub fn from_checkpoint_value(value: serde_json::Value) -> Result<Self> {
+        let doc: CheckpointDocument = serde_json::from_value(value)?;
+        Self::from_checkpoint_doc(doc)
+    }
+
+    fn from_checkpoint_doc(doc: CheckpointDocument) -> Result<Self> {
         doc.config.plant.validate()?;
         if let Some(ref g) = doc.config.grid {
             g.validate()?;
@@ -507,6 +523,40 @@ impl Session {
             last_grid_status: None,
             sample_period_s: 1.0,
         })
+    }
+
+    /// History window for hosts (optional sim-time bounds, inclusive).
+    pub fn history_window(
+        &self,
+        from_secs: Option<f64>,
+        to_secs: Option<f64>,
+    ) -> (Vec<Event>, Vec<Sample>) {
+        let in_range = |t: f64| {
+            if let Some(from) = from_secs {
+                if t < from {
+                    return false;
+                }
+            }
+            if let Some(to) = to_secs {
+                if t > to {
+                    return false;
+                }
+            }
+            true
+        };
+        let events = self
+            .events
+            .iter()
+            .filter(|e| in_range(e.sim_time_s))
+            .cloned()
+            .collect();
+        let samples = self
+            .samples
+            .iter()
+            .filter(|s| in_range(s.sim_time_s))
+            .cloned()
+            .collect();
+        (events, samples)
     }
 
     pub fn grid(&self) -> Option<&StationGrid> {

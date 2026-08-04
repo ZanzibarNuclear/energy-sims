@@ -105,7 +105,7 @@ In-memory sessions only (Stage 1). Auth and multi-tenant storage are later.
 wasm-pack build crates/energy-sim-wasm --target web
 ```
 
-### Current exports (Stage 1 minimal)
+### One-shot helpers
 
 | JS name | Role |
 | --- | --- |
@@ -114,17 +114,21 @@ wasm-pack build crates/energy-sim-wasm --target web
 | `runSession(configJson, durationSecs, commandsJson?)` | One-shot start + advance; returns `AdvanceReport` |
 | `sessionSnapshot(configJson, start)` | Snapshot without long advance |
 
-### Planned exports (game-ready — see [plans/next.md](plans/next.md))
+### Long-lived `Session` handle (game-ready)
 
-Long-lived session handle aligned with the HTTP API:
+Aligned with the HTTP session contract. Drop the handle (or call `.free()`) to release WASM memory.
 
-| Operation | Role |
+| JS | Role |
 | --- | --- |
-| create / free session | Hold runtime state in WASM memory |
-| start / stop | Phase |
-| advance / tick | Sim time |
-| commands | Hydro operator + loads |
-| snapshot / history | Console + charts |
-| checkpoint (optional) | Serialize / restore |
+| `new Session(configJson)` | Create from plant or station JSON |
+| `Session.fromCheckpoint(checkpointJson)` | Restore from checkpoint document |
+| `start()` / `stop()` | Phase; returns snapshot |
+| `advance(durationSecs, commandsJson?)` | Advance; optional command array JSON before advance |
+| `tick(dtSecs)` | Single step; returns snapshot |
+| `applyCommands(commandsJson)` | JSON array of commands; returns snapshot |
+| `snapshot()` | Point-in-time snapshot |
+| `history(fromSecs?, toSecs?)` | `{ events, samples }` |
+| `checkpoint()` / `checkpointJson()` | Full checkpoint object or string |
+| `phase` / `simTimeS` | Convenience getters |
 
-Hosts should use a thin **adapter** so switching WASM ↔ HTTP does not rewrite control-room or holo modules.
+Hosts should use a thin **adapter** so switching WASM ↔ HTTP does not rewrite control-room or holo modules (see [plans/next.md](plans/next.md) A3).
