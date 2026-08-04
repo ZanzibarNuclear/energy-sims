@@ -133,4 +133,23 @@ Aligned with the HTTP session contract. Drop the handle (or call `.free()`) to r
 | `checkpoint()` / `checkpointJson()` | Full checkpoint object or string |
 | `phase` / `simTimeS` | Convenience getters |
 
-Hosts should use a thin **adapter** so switching WASM ↔ HTTP does not rewrite control-room or holo modules (see [plans/next.md](plans/next.md) A3).
+### Host adapter (`clients/js/`)
+
+Use a transport-swappable backend so control-room and holo modules do not care whether physics runs in WASM or on the server:
+
+| Module | Role |
+| --- | --- |
+| `energySimBackend.js` | `createHttpBackend` · `createWasmBackend` · `createEnergySimBackend` |
+| `energySimPresent.js` | `presentHydro` · `presentGrid` · `presentSnapshot` |
+| `energySimClient.js` | Low-level REST/WS + re-exports presentation helpers |
+
+```js
+import { createEnergySimBackend, presentGrid } from "./clients/js/energySimBackend.js";
+
+// Game alpha
+const backend = createEnergySimBackend({ kind: "wasm", wasm: { Session, version } });
+// Lab / hosted
+const backend = createEnergySimBackend({ kind: "http", baseUrl: "http://127.0.0.1:8787" });
+```
+
+See [clients/js/README.md](../clients/js/README.md).
