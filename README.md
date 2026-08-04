@@ -35,6 +35,12 @@ cargo run -p energy-sim-server -- --listen 127.0.0.1:8787
 
 Requires a recent stable Rust toolchain (MSRV **1.76**). More workflows in [examples/README.md](examples/README.md).
 
+Clearwater plant-of-record smoke (after fixture changes):
+
+```sh
+./scripts/smoke-clearwater.sh
+```
+
 ## Workspace layout
 
 ```text

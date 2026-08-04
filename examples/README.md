@@ -1,5 +1,15 @@
 # Examples
 
+## Clearwater plant-of-record smoke
+
+After changing fixtures (or promoting a lab export):
+
+```sh
+./scripts/smoke-clearwater.sh
+```
+
+See [fixtures/README.md](../fixtures/README.md) for the full promote workflow.
+
 ## Headless session run
 
 ```sh

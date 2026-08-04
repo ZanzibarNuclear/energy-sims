@@ -40,54 +40,29 @@ Make energy-sims the **calculation backend** for Atomic Adventures Part I:
 
 ### A. Host surface (this repo) — do first
 
-#### A1. Long-lived WASM session API
+#### A1. Long-lived WASM session API ✅ done
 
 **Why:** Current `energy-sim-wasm` is one-shot (`evaluateHydro`, `runSession`, `sessionSnapshot`). Control room and holo trials need create → many advance/command/snapshot calls without losing state.
 
-**Affects:** `crates/energy-sim-wasm/`
+**Shipped:** `WasmSession` (`Session` in JS) with start/stop/advance/tick/commands/snapshot/history/checkpoint; runtime `from_checkpoint_json` + `history_window`; tests on station fixture.
 
-**Done when:**
-
-- JS can create a session from plant or station JSON, hold a handle, `start` / `stop`, `advance` / `tick`, apply `Command`s, read `Snapshot`, read history samples/events, free the handle.
-- Checkpoint serialize/restore optional but desirable for save tests.
-- Unit or wasm-bindgen tests cover spin-up + load toggle + brownout status on a station fixture.
-
-#### A2. Grid presentation for consoles
+#### A2. Grid presentation for consoles ✅ done
 
 **Why:** Aggregate margin/status exists; a grid terminal needs **per-load** rows and stable ids for UI and game circuits.
 
-**Affects:** `energy-sim-runtime` snapshot (or adjacent DTO), WASM + HTTP responses, [station-grid.md](../station-grid.md)
+**Shipped:** `Snapshot.loads: LoadSnapshot[]` (`id`, `label`, `ratingW`, `priority`, `drawing`); HTTP/WASM return the same shape; docs in [station-grid.md](../station-grid.md).
 
-**Done when:**
-
-- Snapshot (or documented companion payload) includes load list: `id`, `label`, `ratingW`, `priority`, `drawing`.
-- Station fixture smoke shows EV on → shortage/brownout with load table reflecting state.
-- No second physics model—presentation only.
-
-#### A3. Shared host client / adapter sketch
+#### A3. Shared host client / adapter sketch ✅ done
 
 **Why:** Game and lab should not invent divergent APIs.
 
-**Affects:** `clients/js/` (and types usable from the game), docs in [api.md](../api.md)
+**Shipped:** `clients/js/energySimBackend.js` (`createHttpBackend` / `createWasmBackend`), `energySimPresent.js` (`presentHydro` / `presentGrid` / `presentSnapshot`), README deploy paths.
 
-**Done when:**
-
-- Documented `EnergySimBackend` operations match WASM and HTTP.
-- Thin JS helpers: create backend, present snapshot for hydro strip + grid strip (e.g. `lightLevel` from brownout), apply load/hydro commands.
-- README spells out game alpha = WASM; server = lab today and hosted game later.
-
-#### A4. Clearwater fixture workflow (process + light tooling)
+#### A4. Clearwater fixture workflow (process + light tooling) ✅ done
 
 **Why:** Lab export already exists; change needs a repeatable promote path.
 
-**Affects:** `fixtures/`, `fixtures/README.md`, optional script under `scripts/` or `examples/`
-
-**Done when:**
-
-- Documented steps: lab export → CLI smoke → PR plant + station → note version/changelog.
-- Station document remains plant + grid; load ids stable.
-- Optional: one script that runs `hydro eval` + short `session run` on Clearwater fixtures for CI or local check.
-- Game consumption rule: load fixture JSON through the adapter, no forked constants.
+**Shipped:** [fixtures/README.md](../../fixtures/README.md) promote steps, [fixtures/CHANGELOG.md](../../fixtures/CHANGELOG.md), `./scripts/smoke-clearwater.sh` (eval + session run).
 
 ---
 
@@ -152,16 +127,13 @@ Do not parallel aggressively until A1–A3 are usable.
 ## Suggested order
 
 ```text
-A1 WASM long-lived session
-  → A2 grid load table on snapshot
-  → A3 host client / adapter docs + helpers
-  → A4 fixture workflow hardening
+A1–A4 host surface ✅
   → (optional B1 lab loads for designers)
   → C1–C3 game wiring
   → C4 remove legacy hydro
 ```
 
-Minimum useful product for game plug-in: **A1 + A2 + A3** with existing Clearwater station fixture.
+Minimum useful product for game plug-in: **A1 + A2 + A3** with existing Clearwater station fixture — **met**.
 
 ---
 

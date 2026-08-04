@@ -767,9 +767,9 @@ Tests define **engine correctness** from physics and authored scenarios—not fr
 | WASM package (minimal one-shot API) | Done — long-lived session API next |
 | JS client sketch for hosts | Done (`clients/js/`) |
 | Interactive hydro config lab MVP | **Done** — [hydro-config-lab.md](hydro-config-lab.md) |
-| Game-ready WASM session + grid presentation | **Next** — [plans/next.md](plans/next.md) |
-| Clearwater fixture promote workflow | Documented; process hardening next |
-| Atomic Adventures control room + holo wiring | After host surface ready (game repo) |
+| Game-ready WASM session + grid presentation | **Done** (A1–A3) — long-lived WASM session, `Snapshot.loads`, JS adapter |
+| Clearwater fixture promote workflow | **Done** (A4) — [fixtures/README.md](fixtures/README.md), `./scripts/smoke-clearwater.sh` |
+| Atomic Adventures control room + holo wiring | **Next** — game repo (plan C) after host surface |
 | Remove legacy in-game hydro prototypes | Game repo, once energy-sims is default |
 | Database session store | Deferred until multi-session product needs it |
 | Component catalog / multi-source / auto-shed | Later |
