@@ -412,6 +412,12 @@ impl Session {
             }
         };
 
+        let loads = self
+            .grid
+            .as_ref()
+            .map(|g| g.load_snapshots())
+            .unwrap_or_default();
+
         Snapshot {
             sim_time_s: self.sim_time_s,
             phase: self.phase,
@@ -431,6 +437,7 @@ impl Session {
             margin_kw: balance.margin_kw,
             bus_energized: balance.bus_energized,
             grid_status: balance.status.as_str().into(),
+            loads,
             warnings,
         }
     }
@@ -869,6 +876,25 @@ mod tests {
             snap.grid_status
         );
         assert!(snap.margin_kw < 0.0);
+        // Grid terminal: per-load table reflects drawing state (presentation, not shed).
+        assert!(
+            snap.loads.len() >= 4,
+            "expected station load rows, got {}",
+            snap.loads.len()
+        );
+        let ev = snap
+            .loads
+            .iter()
+            .find(|l| l.id == "ev-charge.port-1")
+            .expect("EV load row");
+        assert!(ev.drawing);
+        assert!((ev.rating_w - 3500.0).abs() < 1e-6);
+        let holo = snap
+            .loads
+            .iter()
+            .find(|l| l.id == "holo-reader.library")
+            .expect("holo load row");
+        assert!(!holo.drawing);
         // Report-only: loads still marked drawing.
         assert_eq!(
             session.grid().unwrap().drawing.get("ev-charge.port-1"),

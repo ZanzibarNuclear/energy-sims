@@ -29,7 +29,9 @@ session.save_checkpoint("checkpoint.json")?;
 session.export_series_csv("series.csv")?;
 ```
 
-Key types: `HydroPlantConfig`, `OperatorInputs`, `HydroEvaluation`, `Session`, `Snapshot`, `StationGrid`, `Command`.
+Key types: `HydroPlantConfig`, `OperatorInputs`, `HydroEvaluation`, `Session`, `Snapshot`, `LoadSnapshot`, `StationGrid`, `Command`.
+
+`Snapshot` includes aggregate bus fields and `loads: LoadSnapshot[]` (`id`, `label`, `ratingW`, `priority`, `drawing`) for the station grid terminal.
 
 ## CLI
 

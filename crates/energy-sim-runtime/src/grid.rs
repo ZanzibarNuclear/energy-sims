@@ -219,6 +219,21 @@ impl StationGrid {
         watts / 1000.0
     }
 
+    /// Host-facing load rows (id, label, rating, priority, drawing).
+    pub fn load_snapshots(&self) -> Vec<crate::snapshot::LoadSnapshot> {
+        self.config
+            .loads
+            .iter()
+            .map(|load| crate::snapshot::LoadSnapshot {
+                id: load.id.clone(),
+                label: load.label.clone(),
+                rating_w: load.rating_w,
+                priority: load.priority,
+                drawing: self.drawing.get(&load.id).copied().unwrap_or(false),
+            })
+            .collect()
+    }
+
     /// Balance generation against drawing loads. **Report-only** brownout.
     pub fn balance(&self, available_generation_kw: f64) -> GridBalance {
         let total_load_kw = self.total_load_kw();
@@ -283,6 +298,20 @@ mod tests {
         assert_eq!(b.status, GridStatus::Surplus);
         assert!(b.margin_kw > 0.0);
         assert!(b.bus_energized);
+    }
+
+    #[test]
+    fn load_snapshots_reflect_drawing() {
+        let mut g = sample_grid();
+        g.set_load_drawing("ev-charge.port-1", true).unwrap();
+        let rows = g.load_snapshots();
+        assert_eq!(rows.len(), 2);
+        let lighting = rows.iter().find(|r| r.id == "lighting.main").unwrap();
+        assert!(!lighting.drawing);
+        let ev = rows.iter().find(|r| r.id == "ev-charge.port-1").unwrap();
+        assert!(ev.drawing);
+        assert!((ev.rating_w - 3500.0).abs() < 1e-9);
+        assert_eq!(ev.priority, LoadPriority::Deferrable);
     }
 
     #[test]

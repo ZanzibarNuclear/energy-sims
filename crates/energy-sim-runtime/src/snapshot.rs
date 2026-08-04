@@ -2,7 +2,22 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::grid::LoadPriority;
 use crate::session::SessionPhase;
+
+/// One load row for control-console / host presentation (not a second physics model).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoadSnapshot {
+    pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    /// Nameplate demand when drawing (watts).
+    pub rating_w: f64,
+    pub priority: LoadPriority,
+    /// Whether the load is currently drawing from the bus.
+    pub drawing: bool,
+}
 
 /// Full operational snapshot (actuals + optional targets + grid).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -26,5 +41,8 @@ pub struct Snapshot {
     pub margin_kw: f64,
     pub bus_energized: bool,
     pub grid_status: String,
+    /// Per-load registry state for the station grid terminal (empty if no grid).
+    #[serde(default)]
+    pub loads: Vec<LoadSnapshot>,
     pub warnings: Vec<String>,
 }

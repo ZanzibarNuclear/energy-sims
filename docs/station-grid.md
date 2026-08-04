@@ -69,13 +69,15 @@ Unknown load ids error. Load changes emit events; transitions into/out of browno
 
 ## Control-console presentation
 
-| Aggregate (on `Snapshot` today) | Per-load (game-ready expansion) |
-| --- | --- |
-| `availableGenerationKw`, `totalLoadKw`, `marginKw` | Load id, label, rating, priority, drawing |
-| `busEnergized`, `gridStatus` | Same ids as game circuit bindings |
-| Events for brownout enter/clear | History for alarms / charts |
+Every `Snapshot` includes both aggregates and a **load table** for the grid terminal:
 
-Per-load rows on the host-facing snapshot (or companion DTO) are tracked in [plans/next.md](plans/next.md). Until then, hosts that only need totals can use aggregate fields.
+| Field | Role |
+| --- | --- |
+| `availableGenerationKw`, `totalLoadKw`, `marginKw` | Bus balance |
+| `busEnergized`, `gridStatus` | Status strip / brownout presentation |
+| `loads[]` | Per-load rows: `id`, `label`, `ratingW`, `priority`, `drawing` |
+
+Load `id` values match station fixture circuit ids (`lighting.main`, `ev-charge.port-1`, …). Toggling drawing is still via `Command::SetLoad`; the table is presentation only (no auto-shed).
 
 ## Multi-source later
 

@@ -26,7 +26,7 @@ pub use persistence::{
 pub use session::{
     AdvanceReport, Command, HydroOperatorState, Session, SessionConfig, SessionPhase,
 };
-pub use snapshot::Snapshot;
+pub use snapshot::{LoadSnapshot, Snapshot};
 
 use energy_sim_core::VERSION as CORE_VERSION;
 
