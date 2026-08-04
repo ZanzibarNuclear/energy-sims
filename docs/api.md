@@ -1,6 +1,7 @@
 # API surface
 
-**Status:** Library + CLI + REST/WebSocket server + optional WASM live (Stage 1).
+**Status:** Library + CLI + REST/WebSocket server + WASM (Stage 1; long-lived WASM session next).  
+**Host strategy:** same session contract for **WASM (game alpha on device)** and **HTTP/WS (lab today; hosted game later)**. See [design.md](design.md).
 
 ## Layers
 
@@ -8,8 +9,8 @@
 | --- | --- |
 | **Library** (`energy-sim-core`, `energy-sim-runtime`) | In-process evaluation and sessions |
 | **CLI** (`energy-sim`) | Headless config → run → export |
-| **HTTP + WebSocket** (`energy-sim-server`) | Remote control + live telemetry (PR7) |
-| **WASM** (`energy-sim-wasm`) | Optional embed path |
+| **HTTP + WebSocket** (`energy-sim-server`) | Remote control + live telemetry |
+| **WASM** (`energy-sim-wasm`) | In-browser / embed path for game alpha and offline hosts |
 
 ## Library (Rust)
 
@@ -95,22 +96,35 @@ cargo run -p energy-sim-server -- --listen 127.0.0.1:8787
 
 In-memory sessions only (Stage 1). Auth and multi-tenant storage are later.
 
-## Optional WASM (`energy-sim-wasm`)
+## WASM (`energy-sim-wasm`)
 
-For hosts that prefer in-process evaluation (teaching pages, offline demos):
+**Primary short-term path for Atomic Adventures:** run the engine on the player device so static deploys do not need a sim server. The **remote service** remains the lab path today and the long-term hosted path.
 
 ```sh
 # requires wasm-pack and rustup target wasm32-unknown-unknown
 wasm-pack build crates/energy-sim-wasm --target web
 ```
 
-Exports:
+### Current exports (Stage 1 minimal)
 
 | JS name | Role |
 | --- | --- |
 | `version()` | Banner string |
 | `evaluateHydro(plantJson, operatorJson?)` | Steady-state hydro eval |
-| `runSession(configJson, durationSecs, commandsJson?)` | Start + advance; returns `AdvanceReport` |
+| `runSession(configJson, durationSecs, commandsJson?)` | One-shot start + advance; returns `AdvanceReport` |
 | `sessionSnapshot(configJson, start)` | Snapshot without long advance |
 
-Not required for Atomic Adventures when the remote service path is healthy.
+### Planned exports (game-ready — see [plans/next.md](plans/next.md))
+
+Long-lived session handle aligned with the HTTP API:
+
+| Operation | Role |
+| --- | --- |
+| create / free session | Hold runtime state in WASM memory |
+| start / stop | Phase |
+| advance / tick | Sim time |
+| commands | Hydro operator + loads |
+| snapshot / history | Console + charts |
+| checkpoint (optional) | Serialize / restore |
+
+Hosts should use a thin **adapter** so switching WASM ↔ HTTP does not rewrite control-room or holo modules.

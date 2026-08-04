@@ -1,8 +1,10 @@
 # energy-sim JS client
 
-Minimal REST + WebSocket client for `energy-sim-server`. Intended for Atomic Adventures control-room wiring and other browser hosts.
+Minimal host client for browser apps. Today this package talks to **`energy-sim-server`** (REST + WebSocket). Game alpha will prefer **WASM** with the **same session operations**; treat this client as the HTTP transport and the shape of the future adapter.
 
-## Usage
+Architecture: [docs/design.md](../../docs/design.md). Remaining work: [docs/plans/next.md](../../docs/plans/next.md).
+
+## Usage (HTTP)
 
 ```js
 import { createEnergySimClient, presentSnapshot } from "./energySimClient.js";
@@ -32,9 +34,14 @@ live.tick(1.0);
 
 ## Game integration notes
 
-- Keep legacy `game/src/lib/simulations/hydro` prototypes until the remote path is the default.
-- Opt in with `VITE_ENERGY_SIM_URL` (or equivalent).
-- Brownout is **report-only** in the engine: use `presentSnapshot(...).lightLevel` (or `brownout`) to dim lights in the host.
-- Load commands use engine load ids from station fixtures (`lighting.main`, `ev-charge.port-1`, …).
+| Topic | Guidance |
+| --- | --- |
+| Short-term deploy | **WASM** on the player device (long-lived session API — see plan A1) |
+| Hosted / lab path | HTTP client above + `VITE_ENERGY_SIM_URL` |
+| Adapter | One interface for create/start/advance/command/snapshot; swap WASM vs HTTP |
+| Console | Hydro sensors view + grid view from the same session |
+| Brownout | Report-only; use `presentSnapshot(...).lightLevel` (or status) for dimming |
+| Load ids | From station fixtures (`lighting.main`, `ev-charge.port-1`, …) — keep stable |
+| Legacy hydro JS | Remove in the game repo once this path is default |
 
-See [docs/api.md](../../docs/api.md) for the full HTTP/WS surface.
+See [docs/api.md](../../docs/api.md) for HTTP/WS and WASM surfaces.

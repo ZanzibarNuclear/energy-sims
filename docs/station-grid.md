@@ -1,6 +1,7 @@
 # Station electrical grid
 
-**Status:** Implemented in `energy-sim-runtime` (PR4).
+**Status:** Implemented in `energy-sim-runtime` (PR4).  
+**Game use:** control-room **grid terminal** + facility loads; see [design.md](design.md) host integration.
 
 ## Stage 1 model
 
@@ -17,6 +18,7 @@
 - Loads draw from the bus when `drawing = true`.
 - Engine reports supply, demand, margin, and status.
 - **Brownout policy = report-only:** no automatic load shedding.
+- The grid is **more than brownout**: it is the station’s named loads, ratings, drawing state, and bus margin—the control console’s second terminal (alongside hydro sensors).
 
 ## Status values
 
@@ -64,6 +66,16 @@ session.apply(Command::SetLoad { id: "lighting.main".into(), drawing: true })?;
 ```
 
 Unknown load ids error. Load changes emit events; transitions into/out of brownout emit `brownout_entered` / `brownout_cleared`.
+
+## Control-console presentation
+
+| Aggregate (on `Snapshot` today) | Per-load (game-ready expansion) |
+| --- | --- |
+| `availableGenerationKw`, `totalLoadKw`, `marginKw` | Load id, label, rating, priority, drawing |
+| `busEnergized`, `gridStatus` | Same ids as game circuit bindings |
+| Events for brownout enter/clear | History for alarms / charts |
+
+Per-load rows on the host-facing snapshot (or companion DTO) are tracked in [plans/next.md](plans/next.md). Until then, hosts that only need totals can use aggregate fields.
 
 ## Multi-source later
 

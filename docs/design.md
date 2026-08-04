@@ -2,11 +2,11 @@
 
 **Project:** Zanzibar's World of Energy / Atomic Adventures  
 **Component:** Multi-source energy simulation engine (Stage 1: hydro + station grid)  
-**Date:** 2026-07-30  
-**Status:** Stage 1 engine complete (revision 9 — design/plans split)  
+**Date:** 2026-08-04  
+**Status:** Stage 1 engine + hydro config lab MVP complete (revision 10 — game integration design)  
 **Repository:** [github.com/ZanzibarNuclear/energy-sims](https://github.com/ZanzibarNuclear/energy-sims)  
 **Local path:** `sims/energy-sims/` (clone under atomic-ambitions monorepo `sims/`)  
-**Plans:** outstanding work and next builds live under [`docs/plans/`](plans/)
+**Plans:** remaining work in [`docs/plans/next.md`](plans/next.md)
 
 ---
 
@@ -14,9 +14,11 @@
 
 We are building a **Rust energy simulation engine** that owns the calculation truth for power generation and for a local **station electrical grid**. Stage 1 delivers a solid hydro plant model plus a bus that sources feed into, so generation and demand can be balanced, monitored, and stressed (surplus, shortage, brownout).
 
-The engine is **headless first**: configure with JSON, run from a CLI, advance simulation time, and capture operational history. Hosts (game control room, learning tools, future services) talk to it through clear APIs—ideally as a **remote service** once that is useful. Optional WASM remains a composition path for embedded clients, not the primary delivery model.
+The engine is **headless first**: configure with JSON, run from a CLI, advance simulation time, and capture operational history. Hosts (game control room, holo-reader lessons, designer tools) talk to it through a **stable session contract**—the same create / start / advance / command / snapshot surface—whether the backend runs **in-process via WASM** (short-term game deploy) or as a **remote REST + WebSocket service** (later hosted logic).
 
-Existing prototypes in `welcome` and `atomic-adventures` are **inspiration only**. Stage 1 is a new foundation: modular, performant, and designed so solar, battery, fission, and fusion can join the same grid later.
+The **hydro config lab** (`apps/hydro-config-lab/`) is the stand-alone authoring and trial UI against the production engine. It is the primary tool for Clearwater tuning and for discovering which controls belong in the player-facing holo-reader.
+
+Existing prototypes in `welcome` and `atomic-adventures` are **inspiration only**. Stage 1 is a new foundation: modular, performant, and designed so solar, battery, fission, and fusion can join the same grid later. Legacy in-game hydro JS is retired on the game side once the energy-sims path is the default.
 
 ---
 
@@ -66,11 +68,13 @@ Stage 1 is **implemented**. Acceptance criteria (all met in this repo):
 4. **Station grid** — Generation feeds a local bus; loads draw; surplus/deficit and report-only brownout/shortage. (`StationGrid`)
 5. **Operational data** — Snapshot, energy totals, events, series; JSON checkpoint + CSV + JSONL export.
 6. **Headless usability** — CLI: `hydro eval`, `session run` / `resume` / `export` / `status`.
-7. **Integration path** — Library + CLI + REST/WebSocket server + optional WASM + JS client sketch (`clients/js/`).
+7. **Integration path** — Library + CLI + REST/WebSocket server + WASM + JS client sketch (`clients/js/`).
 
 Later sources (solar, battery, fission, fusion) plug into the same **grid + session** model; Stage 1 implements hydro as the first generation source.
 
-**Not in Stage 1 ship** (tracked in [`docs/plans/`](plans/)): interactive config lab UI, game control-room wiring, database session store, component catalog, multi-source plants, auto load-shed.
+**Shipped after Stage 1 foundation:** interactive **hydro config lab** MVP (site layout, equipment, calculations, engine-backed trials, save/export). See [hydro-config-lab.md](hydro-config-lab.md).
+
+**Still outstanding** (single plan: [`docs/plans/next.md`](plans/next.md)): game-ready WASM session API, richer grid presentation for the control console, Clearwater fixture workflow, then Atomic Adventures integration (control room + holo-reader) and removal of legacy hydro prototypes. Deferred: database session store, component catalog, multi-source plants, auto load-shed.
 
 ---
 
@@ -81,7 +85,7 @@ Later sources (solar, battery, fission, fusion) plug into the same **grid + sess
 | D1 | **Repo: `energy-sims` at `sims/energy-sims/`** | GitHub [ZanzibarNuclear/energy-sims](https://github.com/ZanzibarNuclear/energy-sims); peers `femlab-rs` under `sims/`; room for hydro, grid, future sources. |
 | D2 | **Headless engine first** | CLI + JSON + library prove correctness before any host UI. |
 | D3 | **Station grid in Stage 1** | Power is only useful when it feeds loads; brownouts and “station alive” are product-critical. |
-| D4 | **Primary host path: remote service** when integration starts; **library + CLI** always; **WASM optional** | Decouples game deploy from sim; multi-instance / multi-player ready; WASM only when embedding is better. |
+| D4 | **Session contract first; dual transport** — **WASM embed for short-term game alpha** (runs on the player device); **REST + WebSocket server** when we host shared logic. Library + CLI always. | Same create/start/advance/command/snapshot API; swap backend without rewriting the console or holo-reader. WASM unblocks deploy without a game sim server. |
 | D5 | **JSON as configuration and interchange** | Easy CLI files, service payloads, fixtures, and tooling. |
 | D6 | **Simulation time unit = seconds** (`sim_time_s: f64`) | SI-native, unambiguous; hosts convert game minutes/hours for display. |
 | D7 | **Sources feed a bus; loads draw from it** | One balance model for hydro today and multi-source later. |
@@ -111,7 +115,7 @@ flowchart TB
   end
 
   subgraph engine [sims/energy-sims]
-    API[API layer<br/>library · HTTP · optional WASM]
+    API[API layer<br/>library · HTTP · WASM]
     RT[Runtime<br/>sessions · time · history]
     GRID[Station grid<br/>bus · loads · balance]
     HYDRO[Hydro plant<br/>physics]
@@ -138,7 +142,7 @@ flowchart TB
 | **Hydro plant** | Configured plant: stream/intake/penstock/turbine/generator → available generation |
 | **Station grid** | Bus state, generation attachments, load registry, balance, brownout/shortage |
 | **Runtime** | Session identity, sim clock, start/stop/interval/tick, history, checkpoints |
-| **API** | Library surface, CLI, HTTP service, optional WASM bindings |
+| **API** | Library surface, CLI, HTTP service, WASM bindings |
 | **Persistence** | Save/load session state, config, operational log, export formats |
 
 ### Directory layout
@@ -153,21 +157,21 @@ sims/energy-sims/              # https://github.com/ZanzibarNuclear/energy-sims
 │   ├── hydro-physics.md       # equations, parameters, units
 │   ├── station-grid.md        # bus, loads, balance semantics
 │   ├── api.md                 # library, CLI, HTTP / WebSocket surface
-│   ├── hydro-config-lab.md    # interactive config lab design (next product)
-│   └── plans/                 # implementation plans (what to build next)
+│   ├── hydro-config-lab.md    # stand-alone lab (implemented MVP)
+│   └── plans/next.md          # remaining game-readiness work
 ├── crates/
 │   ├── energy-sim-core/       # physics, types, pure evaluation
 │   ├── energy-sim-runtime/    # sessions, time, ramps, history, grid
 │   ├── energy-sim-cli/        # headless operator
 │   ├── energy-sim-server/     # REST + WebSocket remote API
-│   └── energy-sim-wasm/       # optional embed path
-├── clients/js/                # thin REST + WebSocket client for hosts
-├── apps/hydro-config-lab/     # Vue clean-slate config prototyping UI
-├── fixtures/                  # example plant + load configs (JSON)
+│   └── energy-sim-wasm/       # in-browser / embed path (game alpha)
+├── clients/js/                # thin host client (REST/WS; shared types later)
+├── apps/hydro-config-lab/     # Vue site builder + trial runner (MVP shipped)
+├── fixtures/                  # plant + station configs (game plant of record)
 └── examples/                  # sample runs, export samples
 ```
 
-Stage 1 shipped **core**, **runtime**, **cli**, **server**, **wasm**, and a **JS client** sketch. Product UIs (config lab, game control room) are separate follow-ons.
+Shipped: **core**, **runtime**, **cli**, **server**, **wasm** (minimal), **JS client** sketch, **hydro config lab** MVP. Next: game-ready host adapter + richer grid presentation — then wire Atomic Adventures.
 
 ### Hydro model
 
@@ -340,6 +344,26 @@ Stage 1 grid behavior:
 - **Brownout policy = report-only:** when demand exceeds supply (e.g. one too many blenders), the engine sets `gridStatus` / warnings so the host can dim lights or show an alarm. **No automatic load shedding** in Stage 1; finer gameplay response later.
 
 This aligns with the spirit of `station-electrical-grid.md` without freezing implementation to current partial game code.
+
+#### Grid is more than brownout (control-console model)
+
+The station bus is a first-class gameplay surface, not a boolean “power on.” The control room should expose **two terminal views** over the same session:
+
+| Console view | Engine truth | Typical readouts / actions |
+| --- | --- | --- |
+| **Hydro sensors** | Plant evaluation + ramps | Gross/net head, head loss, flow, turbine rpm (actual/target), electrical kW (actual/target), energy kWh, phase, operator gate/debris/leakage/online, warnings |
+| **Station grid** | Bus balance + load registry | Generation on bus, total load, margin, `busEnergized`, `gridStatus`, **per-load** id/label/rating/drawing/priority, brownout enter/clear events; commands: set load drawing |
+
+Stage 1 already computes aggregate balance fields on every `Snapshot`. For a usable grid terminal the host also needs a **load table** (and later multi-source mix). That is a small presentation expansion on the engine side (include load states in snapshot or a dedicated query), not a second physics model.
+
+What the grid model owns now vs later:
+
+| Now (Stage 1) | Next (game-ready) | Later |
+| --- | --- | --- |
+| One generation number into the bus | Per-load rows in host-facing snapshot | Multi-source contributions on the bus |
+| Named loads + drawing flags | Stable load ids matching game circuits | Zones / campus feeders |
+| Surplus / shortage / brownout status | Event history for status transitions | Auto load-shed policies |
+| Report-only brownout | Host dimming / alarms from status | Priority-based shed in engine |
 
 ### Dynamic transitions (ramp-up / ramp-down)
 
@@ -514,35 +538,52 @@ energy-sim session status --checkpoint ./run-001/checkpoint.json
 
 `station.json` may compose plant + grid + initial load states in one document or reference multiple files. CLI may accept human-friendly duration flags later (`--duration 1h`) that convert to seconds; the engine itself always works in seconds.
 
-#### Remote service (preferred game integration path)
+#### Host transports (WASM first for game alpha; server when we host)
 
-When the game (or other clients) should not embed the engine, use **REST for control** and **WebSocket for live telemetry**.
+All hosts share one **session contract**. Only the transport changes.
 
-**Why this split (recommendation):**
+| Capability | Meaning |
+| --- | --- |
+| Create session | Plant or full station JSON → handle / `sessionId` + initial snapshot |
+| Start / stop | Session phase |
+| Advance / tick | Run `durationSecs` or `dtSecs` of sim time (with optional command batch) |
+| Commands | Hydro operator inputs, load on/off, … |
+| Snapshot | Point-in-time hydro + grid truth |
+| History | Events + samples for charts |
+| Checkpoint | Serialize full state (save/export); restore when needed |
+
+**Short-term game deploy: WASM on the player device**
+
+This is **feasible** and is the preferred alpha path: no separate sim process to host, works with static game deploys (e.g. Vercel), and reuses the same Rust core/runtime already compiled for the browser.
+
+| Point | Detail |
+| --- | --- |
+| Feasibility | `energy-sim-wasm` already links `energy-sim-core` + `energy-sim-runtime` and exposes evaluate / one-shot session helpers |
+| Gap for game | Alpha needs a **long-lived in-browser session** (create → many advance/command/snapshot calls), not only `runSession` one-shots that discard state |
+| Build | `wasm-pack build crates/energy-sim-wasm --target web` (or bundler-friendly target); ship artifact with the game |
+| Limits | Single-player fidelity on the client; players can inspect WASM; not a multiplayer authority. Acceptable for Part I alpha |
+| Host role | Game still owns story flags, saves, and presentation; WASM owns physics for the open session |
+
+**Later: remote service (REST + WebSocket)**
+
+When we want shared/hosted logic (multiplayer, authoritative ops, thinner clients):
 
 | Concern | Fit |
 | --- | --- |
-| Create session, load config, advance a known interval, checkpoint, one-shot status | **REST** — simple, cacheable, easy to debug with curl, natural for CLI-like and admin tools |
-| Control-room live graphs while the panel is open | **WebSocket** — server pushes snapshots/samples on each tick; no polling storm; bidirectional commands if we want them on the same socket |
-| SSE (Server-Sent Events) | One-way server→client over HTTP; fine for “subscribe to metrics” only. We skip it as the primary live path because the console also **sends** commands (loads, start/stop); WebSocket covers both directions cleanly. REST + SSE is a fallback if WS is painful in a given host. |
+| Create, advance interval, checkpoint, status | **REST** — simple, curl-friendly |
+| Live control-room graphs + commands | **WebSocket** — bidirectional ticks and commands |
+| Auth / multi-tenant store | Chosen when the service is stood up (files first; DB when needed) |
 
-**Sketch**
-
-| Capability | Protocol |
+| Capability | Protocol sketch |
 | --- | --- |
-| Create session | `POST /v1/sessions` body: config JSON → `sessionId` |
-| Get snapshot | `GET /v1/sessions/{id}` |
-| Advance interval | `POST /v1/sessions/{id}/advance` `{ "durationSecs": 3600, "events": [...] }` |
-| Commands | `POST /v1/sessions/{id}/commands` (or WS message) |
-| History / export | `GET /v1/sessions/{id}/history?fromSecs=&toSecs=` · download CSV |
-| Checkpoint | `POST /v1/sessions/{id}/checkpoint` · file download |
-| Live ops | `WS /v1/sessions/{id}/live` — subscribe; receive `snapshot` / `sample` messages; optional command messages |
+| Create session | `POST /v1/sessions` |
+| Snapshot | `GET /v1/sessions/{id}` |
+| Advance | `POST /v1/sessions/{id}/advance` |
+| Commands | `POST /v1/sessions/{id}/commands` or WS |
+| History | `GET /v1/sessions/{id}/history` |
+| Live | `WS /v1/sessions/{id}/live` |
 
-Auth, multi-tenancy, and deploy topology can be chosen when we stand the service up (local process for alpha, then shared host as needed). The game control room becomes a **client** of this API: it displays telemetry and sends load/generation commands; it does not reimplement physics.
-
-#### Optional WASM
-
-Available for hosts that want in-process computation (lightweight teaching pages, offline demos). Same core types as the library; not required for Atomic Adventures if the remote path is healthy.
+**Adapter rule:** Atomic Adventures (and the lab) call a thin **EnergySim backend** interface. Implementations: `WasmBackend` (alpha), `HttpBackend` (server). Switching transport must not change console modules or holo lesson scripts.
 
 ### Persistence
 
@@ -560,22 +601,116 @@ Trial-and-error on the physics and grid model happens against files first; we in
 
 ### Host integration (Atomic Adventures)
 
+Integration is **backend-first in this repo**, then plug into game integration points. The game app does not reimplement hydro or bus math.
+
+#### Integration architecture
+
+```mermaid
+flowchart TB
+  subgraph game [Atomic Adventures]
+    CR[Control room console]
+    HR[Holo-reader hydro module]
+    FAC[Facility / story flags]
+    AD[EnergySim adapter]
+  end
+
+  subgraph backends [energy-sims backends — same contract]
+    WASM[WasmBackend<br/>player device]
+    HTTP[HttpBackend<br/>energy-sim-server]
+  end
+
+  subgraph truth [energy-sim-core + runtime]
+    SESS[Session]
+    HYDRO[Hydro plant]
+    GRID[Station grid]
+  end
+
+  CR --> AD
+  HR --> AD
+  FAC -->|mirror outcomes| AD
+  AD --> WASM
+  AD --> HTTP
+  WASM --> SESS
+  HTTP --> SESS
+  SESS --> HYDRO
+  SESS --> GRID
+```
+
+| Layer | Owns | Does not own |
+| --- | --- | --- |
+| **energy-sims session** | Hydro physics, ramps, bus balance, brownout status, energy totals, sim time, events/samples | Story beats, inventory, map, save schema, dimming art |
+| **Game adapter** | Backend choice, config load from fixtures, map snapshot → UI models, apply commands from panels | Equations |
+| **Control room** | Two terminal views (hydro sensors, grid), charts, operator widgets | Physics |
+| **Holo-reader** | Lesson pages + **constrained** interactive trials (few knobs) | Full plant authoring (that stays in the lab) |
+| **Facility / story** | `hydroOnline`, room power presentation, quest gates from engine outcomes | Recomputing kW |
+
 #### Control room console
 
-- Subscribes to or polls **generation + grid** snapshots.
-- Charts operational series; shows available power, load, margin, brownout.
-- Sends commands: load circuits on/off, hydro operator inputs, start/stop.
-- Does not compute \(P = \eta\rho gQH\); it presents engine truth.
+Two terminals on the same panel (tabs or side-by-side), both bound to **one** station session:
+
+1. **Hydro sensors** — head, flow, losses, rpm, power (actual vs target), energy, phase, operator inputs, warnings; start/stop and gate/debris as gameplay allows.
+2. **Station grid** — bus energized, generation, total load, margin, status; table of loads with on/off; brownout/shortage presentation (e.g. `lightLevel` from host helper).
+
+Live feel: while the console is open, the host advances sim time on a tick (or wall-clock paced interval) and redraws from snapshots. Away from the console, the host may advance larger game-time intervals through the same adapter so energy and balance stay consistent.
 
 #### Facility gameplay
 
-- Outlets, appliances, EV charging, lights depend on **bus energized** and local switch/armed state (game/world) while **ratings and balance** come from the grid model (engine or engine-backed host service).
-- Brownouts and shortages are simulation outcomes the game can dramatize.
+- Outlets, appliances, EV charging, lights depend on **bus energized** and local switch/armed state (game/world) while **ratings and balance** come from the grid model.
+- Brownouts and shortages are simulation outcomes the game dramatizes (dim lights, warnings)—engine remains report-only until shed policies are designed.
 
-#### Learning / sandbox
+#### Holo-reader hydro module
 
-- Same hydro + grid engine with sandbox configs (vary head, diameter, flow, friction live).
-- Early teaching UIs in the monorepo can remain as-is; new experiences should call the engine rather than reimplement physics.
+| Lab (designer) | Holo-reader (player) |
+| --- | --- |
+| Full site construction + many parameters | Few teaching knobs proven interesting in the lab (e.g. head via simple layout, flow, efficiency) |
+| Named configs, export fixtures | Fixed or lightly parameterized scenario JSON from fixtures |
+| Long trial charts against server | Short WASM (or server) trials inside the lesson frame |
+| Authoring tool | Curriculum + quiz + optional “run the model” steps |
+
+The lab is the **research bench** for which controls and trial feedback transfer into holo lessons. Transfer is deliberate: document the reduced control set, bake scenario JSON, implement the lesson against the adapter—not a second browser physics stack.
+
+#### Legacy prototypes
+
+Once the adapter path is default in the game:
+
+- Remove or quarantine `game/src/lib/simulations/hydro/` (and any parallel JS power math) so one truth remains.
+- Update adventure contracts (`hydro-simulator.md`, `station-electrical-grid.md`, `control-panel.md`) to point at energy-sims as the calculation authority.
+- Keep welcome `HydroPowerSimulator.vue` as optional monorepo inspiration only; do not wire it into Part I.
+
+That removal work is **game-repo** work after this repo’s host surface is ready.
+
+### Clearwater plant-of-record workflow
+
+The stand-alone lab is how we **try** configurations; fixtures in this repo are how we **publish** the campus plant the game should load.
+
+```text
+  Lab (tune site + equipment)
+       │ export plant JSON  (and later full station JSON)
+       ▼
+  Review: energy-sim hydro eval / session run smoke
+       │
+       ▼
+  PR into fixtures/plants/clearwater-diversion.json
+       + fixtures/stations/utility-station.json  (plant + grid)
+       │
+       ▼
+  Game pins / copies fixture (versioned) as Clearwater plant of record
+```
+
+| Step | Who | Artifact |
+| --- | --- | --- |
+| 1. Tune | Designer in hydro-config-lab | Named lab save + export plant (engine schema) |
+| 2. Smoke | Author / CI | `energy-sim hydro eval --config …` and short `session run` with station grid |
+| 3. Promote | PR in energy-sims | Update `fixtures/plants/` and nested plant inside `fixtures/stations/`; note change in fixture README or short changelog |
+| 4. Consume | Game | Load the station document (or plant + grid) through the EnergySim adapter; do not hard-code physics constants in Vue |
+| 5. Evolve | Repeat | Bump fixture `id`/`label` or a simple `contentVersion` when numbers change so saves and lessons can detect stale configs |
+
+**Rules**
+
+- Engine field schema is the interchange format (not lab-only site geometry). Lab site profile stays in lab documents; plant export is what the game runs.
+- Station document = plant + grid loads. Grid load ids (`lighting.main`, `holo-reader.library`, …) should stay stable once the game binds circuits to them.
+- Prefer small, reviewed fixture PRs over silent local overrides in the game repo.
+- Optional later: `packageId` catalog packages still expand to the same fields; Clearwater remains a full field document until catalog exists.
 
 ### Multi-source foundation
 
@@ -614,7 +749,7 @@ Applies beyond hydro: e.g. Gen IV MSR based on a real molten-salt design with th
 | Property / bounds | Non-negative head/power; energy uses actual (ramped) power | Covered for power ≥ 0 and energy-vs-actual |
 | Service tests | REST create/advance/command; WS live stream | Server implemented; **no automated service tests yet** |
 
-Tests define **engine correctness** from physics and authored scenarios—not from matching legacy prototype outputs. Gaps (CLI/server automation) are tracked in [`docs/plans/engine-followups.md`](plans/engine-followups.md).
+Tests define **engine correctness** from physics and authored scenarios—not from matching legacy prototype outputs. Remaining quality and product work is tracked in [`docs/plans/next.md`](plans/next.md).
 
 ---
 
@@ -629,12 +764,15 @@ Tests define **engine correctness** from physics and authored scenarios—not fr
 | CLI headless workflows + fixtures | Done |
 | File persistence (checkpoint packages) | Done |
 | Server REST + WebSocket | Done |
-| Optional WASM package | Done (minimal surface) |
+| WASM package (minimal one-shot API) | Done — long-lived session API next |
 | JS client sketch for hosts | Done (`clients/js/`) |
-| Interactive hydro config lab | **Next** — [design](hydro-config-lab.md) · [plan](plans/hydro-config-lab.md) |
-| Game control-room client wiring | Outstanding (game repo + this client) |
+| Interactive hydro config lab MVP | **Done** — [hydro-config-lab.md](hydro-config-lab.md) |
+| Game-ready WASM session + grid presentation | **Next** — [plans/next.md](plans/next.md) |
+| Clearwater fixture promote workflow | Documented; process hardening next |
+| Atomic Adventures control room + holo wiring | After host surface ready (game repo) |
+| Remove legacy in-game hydro prototypes | Game repo, once energy-sims is default |
 | Database session store | Deferred until multi-session product needs it |
-| Component catalog / multi-source / auto-shed | Later — see [plans](plans/) |
+| Component catalog / multi-source / auto-shed | Later |
 
 ---
 
@@ -644,7 +782,9 @@ Tests define **engine correctness** from physics and authored scenarios—not fr
 | --- | --- | --- |
 | Report-only brownout feels weak in play | Low | Host-side presentation (dimming) is enough for Stage 1; shed later |
 | Loss catalog too coarse for enthusiasts | Low | Nominal table + overrides; optional deeper model later |
-| WebSocket ops complexity | Medium | REST works alone for batch/CLI; WS only for live console |
+| WASM session API lags game needs | Medium | Expand long-lived session in `energy-sim-wasm` before game wiring |
+| Dual physics if legacy hydro remains | High | Delete game prototypes once adapter is default; one fixture path |
+| WebSocket / server ops complexity | Medium | WASM alpha first; REST works alone for batch; WS only for live hosted console |
 | File scale limits multi-player server | Medium | Expected; migrate to DB after schema stabilizes |
 | Catalog/sponsorship delayed forever | Low | Keep generic fields + optional `packageId` hooks from the start |
 
@@ -658,9 +798,13 @@ Tests define **engine correctness** from physics and authored scenarios—not fr
 | 2 | Brownout policy | **Report-only** (flag shortage/brownout; host presents dimming etc.) |
 | 3 | Friction / losses | **Short catalog of common causes** with nominal coefficients; not deep CFD |
 | 4 | Server protocol | **REST for control + WebSocket for live telemetry** (SSE not primary) |
-| 5 | Persistence | **Files from the start** (JSON checkpoint, CSV series, JSONL events); **database soon after** the model settles |
-| 6 | Live API | **REST** for control/config; **WebSocket** for live stats (confirmed) |
+| 5 | Persistence | **Files from the start** (JSON checkpoint, CSV series, JSONL events); **database** when multi-session product needs it |
+| 6 | Live API | **REST** for control/config; **WebSocket** for live stats on the server path |
 | 7 | Dynamics | **Ramp-up / ramp-down** for turbine speed and power (and reusable later for heat sources) |
+| 8 | Short-term game deploy | **WASM on the player device** with the same session contract; remote server when we host shared logic |
+| 9 | Desktop lab shell (Tauri) | **Out of scope** — browser lab + local `energy-sim-server` is enough for designers |
+| 10 | Control console shape | **Two views** on one station session: hydro sensors + station grid |
+| 11 | Plant of record | **Fixtures in energy-sims**, tuned via lab export + reviewed PR; game consumes, does not fork physics |
 
 ---
 
@@ -669,10 +813,11 @@ Tests define **engine correctness** from physics and authored scenarios—not fr
 1. New foundation under `sims/energy-sims/` ([ZanzibarNuclear/energy-sims](https://github.com/ZanzibarNuclear/energy-sims))—not a rewrite of prototype simulators.  
 2. Stage 1 = hydro physics + **ramps** + session lifecycle + **station grid** + operational data + headless CLI.  
 3. Sim time in **seconds**; brownout **report-only**; losses via a **simple cause catalog**.  
-4. Remote path: **REST + WebSocket**; files first (**CSV** series), DB next.  
+4. **Session contract + dual transport:** WASM for game alpha on device; **REST + WebSocket** when logic is hosted.  
 5. Generic component specs now; **real-world / sponsored packages** later on the same fields.  
 6. Multi-source ready via grid attachments; only hydro is built in Stage 1.  
-7. Graphs show **transitions** (spin-up / spin-down), not only steady state.
+7. Graphs show **transitions** (spin-up / spin-down), not only steady state.  
+8. Designer lab is the tuning and holo-research bench; Clearwater ships through **versioned fixtures**.
 
 ---
 
@@ -683,16 +828,18 @@ Tests define **engine correctness** from physics and authored scenarios—not fr
 - `atomic-adventures/docs/contracts/control-panel.md`  
 - `atomic-adventures/docs/contracts/holo-reader.md`  
 - `atomic-adventures/game-design/content/subject-matter/hydro-simulation.md`  
-- `atomic-adventures/game/src/lib/simulations/hydro/` (prototype)  
-- `welcome/app/components/simulators/HydroPowerSimulator.vue` (prototype)  
+- `atomic-adventures/game/src/lib/simulations/hydro/` (legacy prototype — to remove after integration)  
+- `welcome/app/components/simulators/HydroPowerSimulator.vue` (inspiration only)  
 - `sims/femlab-rs/`  
 - `isotope-explorer/crates/nuclear-sim`
 
 ---
 
-## Implementation history (Stage 1)
+## Implementation history
 
-Stage 1 was delivered as an incremental PR stack (scaffold → hydro core → session/ramps → grid → CLI → persistence → server → WASM + JS client). That plan is **closed**. What remains is product and hardening work, not engine foundation.
+### Stage 1 engine (closed)
+
+Delivered as an incremental PR stack (scaffold → hydro core → session/ramps → grid → CLI → persistence → server → WASM + JS client).
 
 | Shipped capability | Primary crates / paths | Unit / scenario tests |
 | --- | --- | --- |
@@ -703,17 +850,28 @@ Stage 1 was delivered as an incremental PR stack (scaffold → hydro core → se
 | CLI eval / run / resume / export / status | `energy-sim-cli` | manual smoke; automated suite pending |
 | Checkpoint packages (JSON/CSV/JSONL) | runtime persistence | strong |
 | REST + WebSocket remote API | `energy-sim-server` | code complete; automated suite pending |
-| Optional WASM evaluate/session helpers | `energy-sim-wasm` | minimal |
+| WASM evaluate / one-shot session helpers | `energy-sim-wasm` | minimal |
 | Thin browser client | `clients/js/` | none (host-side) |
 
-**Outstanding work** (not described as “done” here—see plans):
+### Hydro config lab MVP (closed)
 
-| Item | Plan |
+Clean-slate site construction and production-engine trials in `apps/hydro-config-lab/`. Product design: [hydro-config-lab.md](hydro-config-lab.md).
+
+| Capability | Notes |
 | --- | --- |
-| Interactive hydro config lab (next product priority) | [plans/hydro-config-lab.md](plans/hydro-config-lab.md) · [design](hydro-config-lab.md) |
-| Engine hardening, game client, deferred later items | [plans/engine-followups.md](plans/engine-followups.md) |
-| Plan index | [plans/README.md](plans/README.md) |
+| Layout tab | Intake, penstock bends, turbine on x–y canvas; compile to head/length/K |
+| Equipment tab | Teaching-focused controls (flow, diameter, overall η) + advanced overrides |
+| Calculations tab | Steady engine preview + power equation with current numbers |
+| Run tab | Session trials with paced advances, spin-up/spin-down charts (REST) |
+| Save / export / import | Named localStorage configs; plant JSON export for CLI and fixtures |
+| Draft resume | Browser draft auto-save |
+
+In-flight UX after the original PR1–PR5 stack (tab workflow, simplified equipment, equation view, chart units, gate/stop behavior) is part of the shipped MVP, not open plan work.
+
+### Remaining work
+
+See the single active plan: [`docs/plans/next.md`](plans/next.md).
 
 ---
 
-*End of design document (revision 9).*
+*End of design document (revision 10).*

@@ -1,11 +1,14 @@
-//! Optional WASM bindings for embedded hosts (teaching pages, offline demos).
+//! WASM bindings for in-browser hosts (Atomic Adventures alpha, teaching pages).
 //!
 //! Build with:
 //! ```sh
 //! wasm-pack build crates/energy-sim-wasm --target web
 //! ```
 //!
-//! The primary game path remains the remote REST + WebSocket service.
+//! Short-term game deploy runs on the player device via this crate. A long-lived
+//! session API (create / advance / command / snapshot) is the next expansion;
+//! see `docs/plans/next.md`. The remote REST + WebSocket service remains the
+//! designer lab path and the long-term hosted path.
 
 use energy_sim_core::{evaluate_plant_with_inputs, HydroPlantConfig, OperatorInputs};
 use energy_sim_runtime::{Command, Session};
