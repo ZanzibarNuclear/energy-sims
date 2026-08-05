@@ -1,6 +1,7 @@
 # Station electrical grid
 
-**Status:** Implemented in `energy-sim-runtime` (PR4).
+**Status:** Implemented in `energy-sim-runtime` (PR4).  
+**Game use:** control-room **grid terminal** + facility loads; see [design.md](design.md) host integration.
 
 ## Stage 1 model
 
@@ -17,6 +18,7 @@
 - Loads draw from the bus when `drawing = true`.
 - Engine reports supply, demand, margin, and status.
 - **Brownout policy = report-only:** no automatic load shedding.
+- The grid is **more than brownout**: it is the station’s named loads, ratings, drawing state, and bus margin—the control console’s second terminal (alongside hydro sensors).
 
 ## Status values
 
@@ -31,7 +33,7 @@
 
 ## Load registry JSON
 
-See `fixtures/grids/utility-station.json`. Fields:
+See `fixtures/grids/clearwater-diversion.json`. Fields:
 
 | Field | Role |
 | --- | --- |
@@ -44,12 +46,13 @@ See `fixtures/grids/utility-station.json`. Fields:
 
 ## Session composition
 
-Full station document (`fixtures/stations/utility-station.json`):
+Full session document for Clearwater Diversion (`fixtures/stations/clearwater-diversion.json`): plant + its bus. This is the same plant of record as `plants/clearwater-diversion.json`, not a second facility.
 
 ```json
 {
   "schemaVersion": 1,
   "kind": "energy-session",
+  "id": "clearwater-diversion",
   "plant": { "...": "hydro-plant" },
   "grid": { "...": "station-grid" }
 }
@@ -64,6 +67,18 @@ session.apply(Command::SetLoad { id: "lighting.main".into(), drawing: true })?;
 ```
 
 Unknown load ids error. Load changes emit events; transitions into/out of brownout emit `brownout_entered` / `brownout_cleared`.
+
+## Control-console presentation
+
+Every `Snapshot` includes both aggregates and a **load table** for the grid terminal:
+
+| Field | Role |
+| --- | --- |
+| `availableGenerationKw`, `totalLoadKw`, `marginKw` | Bus balance |
+| `busEnergized`, `gridStatus` | Status strip / brownout presentation |
+| `loads[]` | Per-load rows: `id`, `label`, `ratingW`, `priority`, `drawing` |
+
+Load `id` values match station fixture circuit ids (`lighting.main`, `ev-charge.port-1`, …). Toggling drawing is still via `Command::SetLoad`; the table is presentation only (no auto-shed).
 
 ## Multi-source later
 

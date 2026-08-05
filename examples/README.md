@@ -1,5 +1,15 @@
 # Examples
 
+## Clearwater plant-of-record smoke
+
+After changing fixtures (or promoting a lab export):
+
+```sh
+./scripts/smoke-clearwater.sh
+```
+
+See [fixtures/README.md](../fixtures/README.md) for the full promote workflow.
+
 ## Headless session run
 
 ```sh
@@ -8,7 +18,7 @@ cargo run -p energy-sim-cli -- hydro eval --config fixtures/plants/clearwater-di
 
 # Run station for 120 s with lights + EV load; write checkpoint / series / events
 cargo run -p energy-sim-cli -- session run \
-  --config fixtures/stations/utility-station.json \
+  --config fixtures/stations/clearwater-diversion.json \
   --duration-secs 120 \
   --out-dir ./run-demo/ \
   --commands examples/commands-lights-ev.json

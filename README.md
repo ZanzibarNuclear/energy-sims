@@ -8,7 +8,7 @@ Rust, headless-first: hydropower and a local station grid in Stage 1, with room 
 
 ## Status
 
-**Stage 1 engine implemented** (hydro physics, ramps, station grid, CLI, file packages, REST + WebSocket server, JS client, optional WASM). Architecture: [docs/design.md](docs/design.md). Next product work: interactive **hydro config lab** — [docs/hydro-config-lab.md](docs/hydro-config-lab.md) · [docs/plans/](docs/plans/).
+**Stage 1 engine implemented** (hydro physics, ramps, station grid, CLI, file packages, REST + WebSocket server, JS client, WASM). **Hydro config lab MVP shipped** (`apps/hydro-config-lab/`). Architecture and game integration design: [docs/design.md](docs/design.md). Remaining work: [docs/plans/next.md](docs/plans/next.md) (WASM long-lived session, grid presentation, then Atomic Adventures wiring).
 
 ## Quick start
 
@@ -21,7 +21,7 @@ cargo run -p energy-sim-cli -- hydro eval --config fixtures/plants/clearwater-di
 
 # Session: 120 s with loads → checkpoint.json, series.csv, events.jsonl
 cargo run -p energy-sim-cli -- session run \
-  --config fixtures/stations/utility-station.json \
+  --config fixtures/stations/clearwater-diversion.json \
   --duration-secs 120 \
   --out-dir ./run-demo/ \
   --commands examples/commands-lights-ev.json
@@ -34,6 +34,12 @@ cargo run -p energy-sim-server -- --listen 127.0.0.1:8787
 ```
 
 Requires a recent stable Rust toolchain (MSRV **1.76**). More workflows in [examples/README.md](examples/README.md).
+
+Clearwater plant-of-record smoke (after fixture changes):
+
+```sh
+./scripts/smoke-clearwater.sh
+```
 
 ## Workspace layout
 
@@ -55,8 +61,8 @@ energy-sims/
     hydro-physics.md         # equations and parameters
     station-grid.md          # bus / loads
     api.md                   # library, CLI, HTTP / WS
-    hydro-config-lab.md      # interactive config lab design
-    plans/                   # what to build next
+    hydro-config-lab.md      # config lab (MVP shipped)
+    plans/next.md            # game-readiness plan
 ```
 
 Optional WASM: `wasm-pack build crates/energy-sim-wasm --target web`.
@@ -86,12 +92,12 @@ See [apps/hydro-config-lab/README.md](apps/hydro-config-lab/README.md).
 
 | Doc | Description |
 | --- | --- |
-| [docs/design.md](docs/design.md) | Architecture and Stage 1 design |
+| [docs/design.md](docs/design.md) | Architecture, integration, Clearwater workflow |
 | [docs/hydro-physics.md](docs/hydro-physics.md) | Hydro equations and parameters |
 | [docs/station-grid.md](docs/station-grid.md) | Station bus and balance semantics |
-| [docs/api.md](docs/api.md) | Library, CLI, and remote API surface |
-| [docs/hydro-config-lab.md](docs/hydro-config-lab.md) | Config lab product design (next) |
-| [docs/plans/](docs/plans/) | Implementation plans |
+| [docs/api.md](docs/api.md) | Library, CLI, HTTP/WS, WASM |
+| [docs/hydro-config-lab.md](docs/hydro-config-lab.md) | Config lab (MVP shipped) |
+| [docs/plans/next.md](docs/plans/next.md) | Remaining game-readiness work |
 
 ## License
 

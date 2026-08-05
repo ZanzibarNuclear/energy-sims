@@ -2,13 +2,11 @@
 
 Interactive **clean-slate** plant builder for [energy-sims](../..): place intake, lay penstock, position turbine, then run trials against the production engine.
 
-Design: [`docs/hydro-config-lab.md`](../../docs/hydro-config-lab.md)  
-Plan: [`docs/plans/hydro-config-lab.md`](../../docs/plans/hydro-config-lab.md)
-
 ## Status
 
-**Workflow UI** — three tabs: **Layout** → **Equipment** → **Run**.  
-**Save** keeps named configs in this browser; **Export / Import** for JSON files.
+**MVP shipped** — four tabs: **Layout** → **Equipment** → **Calculations** → **Run**.  
+**Save** keeps named configs in this browser; **Export / Import** for JSON files.  
+Design: [`docs/hydro-config-lab.md`](../../docs/hydro-config-lab.md). Remaining work: [`docs/plans/next.md`](../../docs/plans/next.md).
 
 ## Prerequisites
 
@@ -60,9 +58,10 @@ src/
   App.vue                      # tab workflow shell
   components/
     AppMenu.vue                # ☰ save / export / import
-    SiteCanvas.vue             # Layout tab (default intake+turbine)
+    SiteCanvas.vue             # Layout tab
     PlantForm.vue              # Equipment tab
-    SteadyPreview.vue
+    SteadyPreview.vue          # Calculations tab
+    PowerEquation.vue
     ServerStatus.vue           # Run tab
     TrialRunner.vue
     SeriesChart.vue
@@ -72,7 +71,15 @@ src/
 ### Workflow
 
 1. **Layout** — place intake / penstock / turbine on the grid  
-2. **Equipment** — stream flow, diameter, friction, η, operator; steady preview  
-3. **Run** — engine status, ▶ Play / ⏹ Stop, power & speed charts  
+2. **Equipment** — flow, diameter, overall η (advanced overrides available)  
+3. **Calculations** — steady preview, head-loss breakdown, power equation  
+4. **Run** — engine status, timed trial, power & speed charts  
 
 File menu (☰): New, Save / Save as (browser), Open saved list, Export JSON, Import JSON.
+
+### Promote a plant to fixtures (Clearwater workflow)
+
+1. Export plant JSON from the lab.  
+2. Smoke: `cargo run -p energy-sim-cli -- hydro eval --config <export.json>`.  
+3. PR into `fixtures/plants/` (and nested plant in `fixtures/stations/` if the station document should match).  
+4. Game loads the fixture through the EnergySim adapter — see [docs/design.md](../../docs/design.md).

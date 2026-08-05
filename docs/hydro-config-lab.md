@@ -2,66 +2,96 @@
 
 **Project:** energy-sims  
 **Component:** Stand-alone interactive configuration and trial runner  
-**Date:** 2026-07-30  
-**Status:** Proposed design (revision 1)  
-**Implementation plan:** [plans/hydro-config-lab.md](plans/hydro-config-lab.md)  
-**Engine design:** [design.md](design.md)
+**Date:** 2026-08-04  
+**Status:** Implemented MVP (revision 2)  
+**Engine design:** [design.md](design.md)  
+**Remaining work:** [plans/next.md](plans/next.md)
 
 ---
 
 ## Purpose
 
-Build a **stand-alone interface** for prototyping hydro (and station) configurations and running them through the **production** Stage 1 engine—not a reimplementation of physics in the browser.
+A **stand-alone interface** for prototyping hydro configurations and running them through the **production** Stage 1 engine—not a reimplementation of physics in the browser.
 
 Two product goals:
 
-1. **Game tuning** — Author Clearwater Diversion (and variants) so the fictional campus plant has the head, flow, losses, and power envelope we want in Atomic Adventures. Export plant/session JSON fixtures the game and engine already understand.
-2. **Lesson / holo-reader research** — Discover which configuration controls and trial feedback feel *interesting enough* to put in a player-facing holo-reader exercise. The welcome `HydroPowerSimulator.vue` proved one-shot exploration; this lab makes **iteration** easy and keeps results tied to the real engine (ramps, grid, brownout, energy).
+1. **Game tuning** — Author Clearwater Diversion (and variants) so the campus plant has the head, flow, losses, and power envelope we want. Export plant JSON the CLI, server, WASM path, and game fixtures understand. See the **Clearwater plant-of-record workflow** in [design.md](design.md).
+2. **Lesson / holo-reader research** — Discover which controls and trial feedback are interesting enough for a player-facing holo-reader exercise. The welcome `HydroPowerSimulator.vue` proved one-shot exploration; this lab makes **iteration** easy and keeps results tied to the real engine (ramps, energy, and eventually grid).
 
-This is a **designer / educator / developer tool** first. A polished in-lesson UI may later copy patterns proven here; it is not required to ship inside the game on day one.
+This is a **designer / educator / developer tool**. Player-facing UIs copy patterns proven here; they do not need to ship inside the game on day one.
+
+---
+
+## Status (what shipped)
+
+**Location:** `apps/hydro-config-lab/` (Vue 3 + Vite + TypeScript)
+
+| Area | Status |
+| --- | --- |
+| Clean-slate site construction (intake / penstock / turbine) | Done |
+| Compile site → plant fields (head, length, bend K) | Done (+ unit tests) |
+| Equipment properties + teaching-focused defaults | Done |
+| Steady preview against `energy-sim-server` | Done |
+| Power equation / calculations view | Done |
+| Named save (localStorage), export/import JSON, draft resume | Done |
+| Trial runner: start/stop, gate spin-up/down, paced charts | Done (REST) |
+| Station grid / load toggles in lab | **Not yet** — optional when brownout storytelling is needed in-lab |
+| Trial compare / mutation shortcuts | **Not yet** |
+| Live WebSocket trials | **Not yet** (REST interval is enough for MVP) |
+| Desktop shell (Tauri) | **Out of scope** |
+
+### Workflow UI (as built)
+
+Four tabs, progressive disclosure:
+
+1. **Layout** — Place intake, penstock bends, and turbine on an x–y grid (ground distance vs elevation). Default can start with a minimal complete layout; New resets.
+2. **Equipment** — Teaching-focused knobs (intake flow, penstock diameter, overall efficiency) plus room for advanced friction/K overrides; head and length stay derived from Layout.
+3. **Calculations** — Steady engine preview, head-loss breakdown, power equation with symbol then numeric steps.
+4. **Run** — Server health, timed trial against the engine, live-updating power and speed charts (wall-clock paced advances), Stop / spin-down behavior.
+
+File menu: New, Save / Save as, open named list, Export plant or lab document, Import.
+
+Run notes for developers: [apps/hydro-config-lab/README.md](../apps/hydro-config-lab/README.md).
 
 ---
 
 ## Background
 
-### What exists today
+### What the lab sits on
 
 | Asset | Role |
 | --- | --- |
 | `energy-sim-core` / `runtime` | Truth for hydro power, losses, ramps, grid |
-| CLI + fixtures | Headless authoring path (edit JSON by hand) |
-| `energy-sim-server` | REST create/advance/commands + WebSocket live ticks |
-| `clients/js/` | Thin browser client for the server |
-| Welcome `HydroPowerSimulator.vue` | Teaching UI with sliders; **separate** JS physics; one-shot feel |
+| CLI + fixtures | Headless authoring and plant-of-record path |
+| `energy-sim-server` | REST create/advance/commands (+ WebSocket for later live) |
+| `clients/js/` / lab `energySimClient.ts` | Browser client for the server |
+| Welcome / game prototypes | Inspiration only; not calculation authorities |
 
 ### Pain points the lab addresses
 
-- Editing JSON and re-running the CLI is correct but slow for geometric intuition (“what if more elevation drop?” “more penstock bends?”).
+- Editing JSON and re-running the CLI is correct but slow for geometric intuition.
 - Slider-only UIs hide **spatial** structure of a penstock run.
-- Welcome sim is not wired to production sessions (no ramps, grid, or exportable Stage 1 fixtures).
+- Welcome / legacy game sims are not wired to production sessions.
 
 ---
 
 ## Goals and non-goals
 
-### Goals
+### Goals (MVP — met)
 
-- **Clean-slate site construction** — start empty (or nearly empty); the user places an **intake**, lays the **penstock** path, positions the **turbine / powerhouse**, then fills remaining plant properties.
-- Edit layout on a 2D grid: **x = distance along the ground**, **y = elevation**.
-- Set stream flow, efficiencies, diameter, dynamics, operator inputs (gate, debris, leakage, online).
-- **Save / load / rename** configurations (local first).
-- **Submit** config to the engine, run intervals or live ticks, and **watch** power, head breakdown, spin-up, and (when relevant) grid margin / brownout.
-- Export standard plant/session JSON usable by CLI, server, and game fixtures.
-- Support comparison questions: more head, more bends, drought flow, etc.
+- Site construction on a 2D grid; compile to engine plant fields.
+- Edit major plant parameters; steady preview and timed trials on the production engine.
+- Save / load / export / import configurations (local first).
+- Export standard plant JSON for CLI and fixture promotion.
 
-### Non-goals (v1)
+### Non-goals
 
-- Multi-user cloud account system or production auth.
-- Database-backed multi-session server (files / localStorage / download JSON are enough).
-- Replacing the Atomic Adventures control room (that remains a game host client; **wire the game only after config prototyping settles the engine**).
-- Prefilling the lab as a finished Clearwater clone on first open (fixtures may be **import** options, not the default canvas).
-- Deep CFD or free-form terrain sculpting beyond a polyline profile.
-- Shipping inside the holo-reader on the first cut (research first).
+- Multi-user cloud accounts or production auth.
+- Database-backed multi-session server for the lab.
+- Replacing the Atomic Adventures control room (game host client — after backend readiness).
+- Shipping the full lab UI inside the holo-reader (research first; transfer a **reduced** control set).
+- Deep CFD or free-form terrain sculpting.
+- **Tauri / Electron desktop packaging** — unnecessary; browser + local server is enough.
 
 ---
 
@@ -69,33 +99,26 @@ This is a **designer / educator / developer tool** first. A polished in-lesson U
 
 | # | Decision | Rationale |
 | --- | --- | --- |
-| L1 | **Vue 3 + Vite SPA** for the UI | Matches team preference and welcome stack; fast iteration; Tauri- and Nuxt-friendly later. |
-| L2 | **Talk to the production engine** via `energy-sim-server` (REST + WS) for v1 | Same path as the game; no second physics. Localhost is fine for lab use. |
-| L3 | **Profile → plant fields** compiled in the UI (or a tiny pure helper) for v1 | Engine already takes `grossHeadM`, `lengthM`, `diameterM`, `frictionFactor`, `minorLossCoefficient`. No core schema change required to start. |
-| L4 | **Optional Tauri shell later**, not required for MVP | Desktop packaging and in-process Rust are nice; web lab unblocks tuning sooner. |
-| L5 | **Not Electron** | Heavy Chromium bundle; no advantage over Tauri or plain web for this tool. |
-| L6 | **Named configs as first-class** | Iteration is the product: save “clearwater-steep”, “drought”, “extra-bends”. |
-| L7 | **Keep welcome sim as-is** | Inspiration only; lab does not need to match its slider UX or numbers. |
-| L8 | **Clean-slate construction UI** | User builds the site: drop intake → lay penstock → place turbine; not a wall of sliders on a preloaded plant. |
-| L9 | **Game wiring after prototyping** | Use the lab to shake out config/engine issues before control-room integration. |
-| L10 | **Tests only when they prevent real regressions** | Prefer compiler unit tests and engine-backed checks; no tests for show. |
+| L1 | **Vue 3 + Vite SPA** | Matches team stack; fast iteration |
+| L2 | **Talk to the production engine** via `energy-sim-server` for the lab | Same physics as game; localhost is fine for designers |
+| L3 | **Profile → plant fields** compiled in the UI | Engine already takes head/length/diameter/f/K; no core schema change required for MVP |
+| L4 | **No Tauri/Electron** | Web lab unblocks tuning; packaging is not a product need |
+| L5 | **Named configs as first-class** | Iteration is the product |
+| L6 | **Keep welcome sim as-is** | Inspiration only |
+| L7 | **Clean-slate / constructive UI** | User builds the site; fixtures are import options |
+| L8 | **Game wiring after host surface is ready** | Lab + WASM session + grid presentation first |
+| L9 | **Tests only when they prevent real regressions** | Compile math is protected; no UI appearance tests |
+| L10 | **Tab workflow** | Layout → Equipment → Calculations → Run reduces overload vs one dense page |
 
-### Platform choice: web vs Tauri vs Electron
+---
 
-| Option | Fit | Notes |
-| --- | --- | --- |
-| **Vue SPA + local server** | **Recommended MVP** | `npm run dev` + `cargo run -p energy-sim-server`. Reuses `clients/js/`. Zero packaging. Same API the game will use. |
-| **Tauri 2 + Vue** | Strong follow-on | Tiny native webview app; Rust backend can call `energy-sim-runtime` via `invoke` **or** still talk HTTP to a bundled/local server. First-class Vue/Vite support. System file dialogs for save/load. Ideal as a “designer app” double-click tool later. |
-| **Nuxt** | Optional | Useful if the lab grows into a multi-page product site. For a single lab tool, Vite SPA is lighter; Tauri docs prefer SPA/SSG over SSR for desktop shells. |
-| **Electron** | Not recommended | Dated weight; ships Chromium; weaker fit with a Rust-first engine. |
-
-**Recommendation:** Ship **Vue + Vite web lab** against `energy-sim-server` first. If daily use wants a single desktop binary and native file UX, wrap the **same Vue app** in **Tauri** and optionally add in-process session commands that depend on the existing crates (no duplicate engine).
+## Architecture
 
 ```mermaid
 flowchart LR
   subgraph lab [Hydro Config Lab]
-    UI[Vue UI<br/>profile editor · forms · charts]
-    Store[Named configs<br/>local + JSON files]
+    UI[Vue UI<br/>tabs · canvas · forms · charts]
+    Store[Named configs + draft<br/>localStorage]
   end
 
   subgraph engine [energy-sims]
@@ -104,197 +127,33 @@ flowchart LR
     CORE[energy-sim-core]
   end
 
-  UI -->|REST + WebSocket| SVC
+  UI -->|REST| SVC
   SVC --> RT
   RT --> CORE
   Store <--> UI
-  UI -->|export plant JSON| Fixtures[fixtures/game]
+  UI -->|export plant JSON| Fixtures[fixtures / game plant of record]
 ```
 
-Later Tauri variant (optional):
+### Site compile (v1)
 
-```mermaid
-flowchart LR
-  UI[Vue in webview] -->|invoke| Commands[Tauri commands]
-  Commands --> RT[energy-sim-runtime]
-  UI -->|optional file API| Disk[local JSON]
-```
-
----
-
-## User experience
-
-### Primary loop
-
-1. **New configuration** — empty site (or resume a named save). Optional **import** of an existing plant JSON is available but not forced.
-2. **Build the plant on the grid** — place **intake**, lay **penstock** segments / bends, place **turbine**.
-3. **Fill remaining properties** (flow, diameter, efficiencies, dynamics, operator inputs) as needed.
-4. **Steady preview** when geometry is complete enough to compile a plant.
-5. **Run a trial** (session start + advance/tick) and watch ramps and power.
-6. **Tweak** (more elevation, more bends, lower stream flow) and re-run.
-7. **Save** and/or **export** JSON for the game or fixtures.
-
-### Layout sketch
-
-```text
-┌──────────────────────────────────────────────────────────────────┐
-│  Config: [Untitled ▼]  [New] [Save] [Export] [Import…]  engine ● │
-├─────────────────────────────┬────────────────────────────────────┤
-│  Site canvas (clean slate)  │  Context / properties              │
-│  y elevation (m)            │  Selected: Intake | Bend | Turbine │
-│  ▲                          │  Stream, diameter, η, dynamics…    │
-│  │                          │  (empty until pieces exist)        │
-│  │   (place intake…)        │                                    │
-│  │                          │  Live preview (when compilable)    │
-│  └──────────────────► x     │  P_e, H_net, warnings              │
-│     ground distance (m)     │                                    │
-│  Tools: Intake · Penstock · Turbine · Select                     │
-├─────────────────────────────┴────────────────────────────────────┤
-│  Trial: [▶ Run] [Stop]   (enabled once plant compiles)           │
-│  Charts + snapshot strip                                         │
-└──────────────────────────────────────────────────────────────────┘
-```
-
-### Site construction (x–y grid) — clean slate
-
-The default experience is **constructive**, not “edit a preloaded plant.”
-
-| Piece | Role |
-| --- | --- |
-| **Intake** | Upstream diversion / headworks. Sets the high elevation reference. |
-| **Penstock path** | Ordered intermediate points (bends / grade breaks) between intake and turbine. |
-| **Turbine / powerhouse** | Downstream plant. Sets low elevation; ends the penstock. |
-
-**Model (UI):** typed site elements on the plane `(distanceAlongGroundM, elevationM)`, not an anonymous point list only. Under the hood they still compile to ordered profile points + plant fields.
-
-**Minimum complete plant:** intake + turbine (straight penstock). Intermediate bends are optional.
-
-**Derived plant fields (compile step):**
-
-| Engine field | Derivation (v1) |
+| Engine field | Derivation |
 | --- | --- |
 | `penstock.grossHeadM` | \(\max(0,\, z_\mathrm{intake} - z_\mathrm{turbine})\) |
-| `penstock.lengthM` | Sum of segment lengths in the x–z plane (ground distance + elevation change per segment) |
-| `penstock.minorLossCoefficient` | Base entrance \(K\) + per-bend contribution from turn angle at interior vertices (simple table, author-overridable) |
-| `penstock.frictionFactor` / `diameterM` | Author fields (not from geometry) |
+| `penstock.lengthM` | Sum of segment lengths in the x–z plane |
+| `penstock.minorLossCoefficient` | Base entrance \(K\) + per-bend contribution (overridable) |
+| Diameter, friction, η, dynamics, stream | Author fields on Equipment |
 
-Authors can still **override** compiled values (advanced panel) so the lab never blocks hand-tuned JSON.
+Lab site geometry is preserved in **lab documents** for reopen/edit. Plant export is engine schema (geometry may be reconstructed as a simple profile on import).
 
-**Interactions:** tool palette (place intake, place turbine, add bend, select/move/delete); show derived head/length/K when the site is complete enough; optional “ideal teaching” losses (force \(f=0\), \(K=0\)).
-
-**Import path:** loading `fixtures/plants/*.json` (or any plant file) may **reconstruct** a simple two- or three-point profile from gross head/length for editing—or open properties only if geometry is under-specified. First open of the app remains a blank canvas.
-
-### Configuration properties
-
-Expose Stage 1 plant + operator fields from [hydro-physics.md](hydro-physics.md). Prefer **contextual panels** for the selected site element plus a plant-wide section for stream/efficiency/dynamics.
-
-- Stream available flow  
-- Diameter, friction factor (sensible defaults once a penstock exists)  
-- Turbine / generator efficiency, design/safe flow, rated kW, design rpm  
-- Ramp times  
-- Operator: gate, debris, leakage, online  
-
-**Station grid / loads:** not part of the default clean-slate canvas. Add later only if trial work needs brownout storytelling; until then keep the lab focused on building and running the **plant**.
-
-Prefer **clear numbers and units** over pure sliders for precision; sliders optional where they help intuition.
-
-### Trials
-
-| Mode | Behavior |
-| --- | --- |
-| **Steady preview** | `evaluate` / create session without long advance — instant \(P\), head breakdown, warnings |
-| **Interval run** | `start` + `advance` N seconds; chart series from history/samples |
-| **Live** | WebSocket `/live` ticks; user toggles loads or gate mid-run |
-
-Trial commands the user should feel:
-
-- Open gate → watch spin-up  
-- Close gate / stop → spin-down  
-- Reduce stream flow (“dry-up”) mid-run  
-- Add bends (edit profile, recompile, new trial)  
-- Toggle EV charger → margin / brownout  
-
-### Persistence of named configs
-
-v1:
-
-- Browser **localStorage** (or IndexedDB) for quick iteration  
-- **Download / upload** plant or full session JSON (engine schema)  
-- Optional “copy into `fixtures/plants/`” is a manual or scripted step for repo commits  
-
-Tauri later: native save dialogs and a configs directory next to the app.
-
----
-
-## Engine integration
-
-### API usage (v1)
-
-Use existing surfaces in [api.md](api.md):
+### Engine integration (lab)
 
 | Lab action | API |
 | --- | --- |
-| Steady preview | `POST /v1/sessions` with plant/session JSON → snapshot; or short-lived eval via session without start |
+| Steady preview | Create session + snapshot / short-lived eval path |
 | Start trial | `POST .../start` |
-| Run interval | `POST .../advance` `{ durationSecs, commands? }` |
-| Live | `WS .../live` + `tick` / `command` |
-| Loads / operator | `POST .../commands` |
-| Export | Client-side serialization of the **authored** config (not only checkpoint) |
-
-Reuse and evolve `clients/js/energySimClient.js` (or a TypeScript port under the lab package).
-
-### Schema extensions (optional, later)
-
-If profile editing becomes first-class for the game:
-
-```json
-"penstock": {
-  "grossHeadM": 25,
-  "lengthM": 180,
-  "diameterM": 0.25,
-  "frictionFactor": 0.02,
-  "minorLossCoefficient": 0.5,
-  "profile": {
-    "points": [
-      { "sM": 0, "zM": 100 },
-      { "sM": 80, "zM": 92 },
-      { "sM": 160, "zM": 75 }
-    ]
-  }
-}
-```
-
-v1 may keep `profile` **lab-only metadata** (strip or nest under a `lab` / `extensions` object) so core validation stays unchanged. Promoting profile into `energy-sim-core` is a follow-on if game configs should retain editable geometry.
-
----
-
-## Architecture (lab package)
-
-Suggested layout (new package under this repo):
-
-```text
-apps/hydro-config-lab/          # or clients/hydro-config-lab/
-  package.json
-  vite.config.ts
-  index.html
-  src/
-    main.ts
-    App.vue
-    components/
-      ProfileEditor.vue       # x–y canvas / SVG
-      PlantForm.vue
-      TrialRunner.vue
-      SeriesChart.vue
-      SnapshotStrip.vue
-    lib/
-      compileProfile.ts       # points → head, length, K
-      configStore.ts          # named configs
-      energySimClient.ts      # port of clients/js
-    types/
-  README.md
-```
-
-No change required to Rust crates for MVP. Optional later: Tauri `src-tauri/` sibling that depends on `energy-sim-runtime`.
+| Run interval | `POST .../advance` |
+| Operator / gate | Commands on the session |
+| Export | Client-side serialization of authored config |
 
 ---
 
@@ -302,59 +161,41 @@ No change required to Rust crates for MVP. Optional later: Tauri `src-tauri/` si
 
 | Lab outcome | Transfer target |
 | --- | --- |
-| Tuned Clearwater plant JSON | `fixtures/plants/`, game facility config |
-| “Interesting” control set (few knobs that teach) | Holo-reader lesson design notes / simplified UI |
-| Trial scenarios (drought, bends, overload) | Lesson scripts and control-room demos |
-| Brownout + ramp feel | Game presentation polish |
+| Tuned Clearwater plant JSON | `fixtures/plants/`, station document, game plant of record |
+| “Interesting” control set (few knobs) | Holo-reader lesson design / simplified interactive module |
+| Trial scenarios (drought, bends, spin-up) | Lesson scripts and control-room demos |
+| Grid + brownout feel (when lab loads land) | Control-room grid terminal and facility drama |
 
 The lab intentionally exposes **more** knobs than a player lesson. Part of the work is deciding what to **hide** for the holo-reader after experimentation.
 
 ---
 
+## Optional follow-ons (lab product)
+
+Tracked with game readiness in [plans/next.md](plans/next.md):
+
+- Station loads panel (compose grid, toggle loads, see margin/brownout in trials).
+- Compare last trials / quick mutations (“+10 m head”, “extra bend”).
+- WebSocket live ticks (parity with future hosted console).
+
+---
+
 ## Testing strategy (lab)
 
-Write tests only when they **prevent real regressions**, not for coverage theater.
-
-| Kind | When it earns its keep |
+| Kind | When |
 | --- | --- |
-| Unit | `compileProfile` / site→plant: head, path length, bend K from known layouts (easy to get wrong) |
-| Unit | Config round-trip: lab site model ↔ plant JSON |
-| Manual | Export → `energy-sim hydro eval` / `session run` while iterating UX |
-| E2E | Only if UI workflows start breaking repeatedly |
+| Unit | Site → plant compile (head, length, bend K) |
+| Manual | Export → `energy-sim hydro eval` / `session run` |
+| E2E | Only if UI workflows break repeatedly |
 
-Engine correctness remains owned by Rust tests; the lab must not invent alternate physics.
-
----
-
-## Risks
-
-| Risk | Mitigation |
-| --- | --- |
-| Profile → K mapping feels arbitrary | Document table; allow manual K override; iterate with Clearwater numbers |
-| Authors confuse ground distance with pipe length | Label axes; show both derived length and head prominently |
-| Local server friction | Dev script starts server + Vite; document one-command lab start |
-| Scope creep into full control-room product | Keep v1 authoring + trial focus; game console stays separate |
-
----
-
-## Resolved product questions
-
-| # | Question | Decision |
-| --- | --- | --- |
-| 1 | Default delivery | **Browser-only MVP** (Vue + Vite + local server). Tauri optional later. |
-| 2 | Profile fidelity | **Segment polyline** (intake, bends, turbine)—not freehand curves. |
-| 3 | Preserve geometry on save | **Yes** — keep editable site/profile metadata so reopen restores the canvas; export still emits valid plant JSON. |
-| 4 | Default starting experience | **Clean slate construction** — place intake, lay penstock, place turbine. Not a preloaded station or slider wall. Fixtures are optional import. Grid/loads deferred until plant prototyping needs them. |
-| 5 | Game control-room wiring | **After** config prototyping has shaken out the engine. |
-| 6 | Automated tests | **Meaningful only** — protect compile/export math and critical regressions; no tests for show. |
+Engine correctness remains owned by Rust tests.
 
 ---
 
 ## References
 
-- [design.md](design.md) — engine architecture  
-- [api.md](api.md) — REST / WebSocket  
+- [design.md](design.md) — engine + integration architecture  
+- [api.md](api.md) — REST / WebSocket / WASM  
 - [hydro-physics.md](hydro-physics.md) — equations and plant fields  
-- [plans/hydro-config-lab.md](plans/hydro-config-lab.md) — build plan  
-- Welcome `HydroPowerSimulator.vue` — UX inspiration only  
-- [Tauri 2 start](https://v2.tauri.app/start/) — optional desktop shell  
+- [plans/next.md](plans/next.md) — remaining work  
+- [apps/hydro-config-lab/README.md](../apps/hydro-config-lab/README.md) — how to run  

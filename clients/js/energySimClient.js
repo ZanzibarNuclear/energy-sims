@@ -186,27 +186,8 @@ export function createEnergySimClient(options = {}) {
   };
 }
 
-/**
- * Map an energy-sim Snapshot into control-room friendly fields.
- * @param {object} snapshot
- */
-export function presentSnapshot(snapshot) {
-  if (!snapshot) return null;
-  const brownout = snapshot.gridStatus === "brownout" || snapshot.gridStatus === "shortage";
-  return {
-    simTimeS: snapshot.simTimeS,
-    electricalPowerKw: snapshot.electricalPowerKw,
-    targetElectricalPowerKw: snapshot.targetElectricalPowerKw,
-    turbineSpeedRpm: snapshot.turbineSpeedRpm,
-    availableGenerationKw: snapshot.availableGenerationKw,
-    totalLoadKw: snapshot.totalLoadKw,
-    marginKw: snapshot.marginKw,
-    busEnergized: snapshot.busEnergized,
-    gridStatus: snapshot.gridStatus,
-    brownout,
-    /** Host hint: dim lights when brownout/shortage. */
-    lightLevel: brownout ? 0.4 : snapshot.busEnergized ? 1.0 : 0.0,
-    energyGeneratedKwh: snapshot.energyGeneratedKwh,
-    warnings: snapshot.warnings ?? [],
-  };
-}
+export {
+  presentGrid,
+  presentHydro,
+  presentSnapshot,
+} from "./energySimPresent.js";

@@ -412,6 +412,12 @@ impl Session {
             }
         };
 
+        let loads = self
+            .grid
+            .as_ref()
+            .map(|g| g.load_snapshots())
+            .unwrap_or_default();
+
         Snapshot {
             sim_time_s: self.sim_time_s,
             phase: self.phase,
@@ -431,6 +437,7 @@ impl Session {
             margin_kw: balance.margin_kw,
             bus_energized: balance.bus_energized,
             grid_status: balance.status.as_str().into(),
+            loads,
             warnings,
         }
     }
@@ -478,6 +485,22 @@ impl Session {
     pub fn load_checkpoint(path: impl AsRef<Path>) -> Result<Self> {
         let file = std::fs::File::open(path)?;
         let doc: CheckpointDocument = serde_json::from_reader(file)?;
+        Self::from_checkpoint_doc(doc)
+    }
+
+    /// Restore a session from a checkpoint JSON string (WASM / remote hosts).
+    pub fn from_checkpoint_json(json: &str) -> Result<Self> {
+        let doc: CheckpointDocument = serde_json::from_str(json)?;
+        Self::from_checkpoint_doc(doc)
+    }
+
+    /// Restore a session from a checkpoint JSON value.
+    pub fn from_checkpoint_value(value: serde_json::Value) -> Result<Self> {
+        let doc: CheckpointDocument = serde_json::from_value(value)?;
+        Self::from_checkpoint_doc(doc)
+    }
+
+    fn from_checkpoint_doc(doc: CheckpointDocument) -> Result<Self> {
         doc.config.plant.validate()?;
         if let Some(ref g) = doc.config.grid {
             g.validate()?;
@@ -507,6 +530,40 @@ impl Session {
             last_grid_status: None,
             sample_period_s: 1.0,
         })
+    }
+
+    /// History window for hosts (optional sim-time bounds, inclusive).
+    pub fn history_window(
+        &self,
+        from_secs: Option<f64>,
+        to_secs: Option<f64>,
+    ) -> (Vec<Event>, Vec<Sample>) {
+        let in_range = |t: f64| {
+            if let Some(from) = from_secs {
+                if t < from {
+                    return false;
+                }
+            }
+            if let Some(to) = to_secs {
+                if t > to {
+                    return false;
+                }
+            }
+            true
+        };
+        let events = self
+            .events
+            .iter()
+            .filter(|e| in_range(e.sim_time_s))
+            .cloned()
+            .collect();
+        let samples = self
+            .samples
+            .iter()
+            .filter(|s| in_range(s.sim_time_s))
+            .cloned()
+            .collect();
+        (events, samples)
     }
 
     pub fn grid(&self) -> Option<&StationGrid> {
@@ -766,8 +823,8 @@ mod tests {
     }
 
     fn station_json() -> String {
-        std::fs::read_to_string("fixtures/stations/utility-station.json").unwrap_or_else(|_| {
-            std::fs::read_to_string("../../fixtures/stations/utility-station.json")
+        std::fs::read_to_string("fixtures/stations/clearwater-diversion.json").unwrap_or_else(|_| {
+            std::fs::read_to_string("../../fixtures/stations/clearwater-diversion.json")
                 .expect("station fixture")
         })
     }
@@ -819,6 +876,25 @@ mod tests {
             snap.grid_status
         );
         assert!(snap.margin_kw < 0.0);
+        // Grid terminal: per-load table reflects drawing state (presentation, not shed).
+        assert!(
+            snap.loads.len() >= 4,
+            "expected station load rows, got {}",
+            snap.loads.len()
+        );
+        let ev = snap
+            .loads
+            .iter()
+            .find(|l| l.id == "ev-charge.port-1")
+            .expect("EV load row");
+        assert!(ev.drawing);
+        assert!((ev.rating_w - 3500.0).abs() < 1e-6);
+        let holo = snap
+            .loads
+            .iter()
+            .find(|l| l.id == "holo-reader.library")
+            .expect("holo load row");
+        assert!(!holo.drawing);
         // Report-only: loads still marked drawing.
         assert_eq!(
             session.grid().unwrap().drawing.get("ev-charge.port-1"),

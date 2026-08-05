@@ -1,6 +1,7 @@
 # API surface
 
-**Status:** Library + CLI + REST/WebSocket server + optional WASM live (Stage 1).
+**Status:** Library + CLI + REST/WebSocket server + WASM (Stage 1; long-lived WASM session next).  
+**Host strategy:** same session contract for **WASM (game alpha on device)** and **HTTP/WS (lab today; hosted game later)**. See [design.md](design.md).
 
 ## Layers
 
@@ -8,8 +9,8 @@
 | --- | --- |
 | **Library** (`energy-sim-core`, `energy-sim-runtime`) | In-process evaluation and sessions |
 | **CLI** (`energy-sim`) | Headless config → run → export |
-| **HTTP + WebSocket** (`energy-sim-server`) | Remote control + live telemetry (PR7) |
-| **WASM** (`energy-sim-wasm`) | Optional embed path |
+| **HTTP + WebSocket** (`energy-sim-server`) | Remote control + live telemetry |
+| **WASM** (`energy-sim-wasm`) | In-browser / embed path for game alpha and offline hosts |
 
 ## Library (Rust)
 
@@ -28,7 +29,9 @@ session.save_checkpoint("checkpoint.json")?;
 session.export_series_csv("series.csv")?;
 ```
 
-Key types: `HydroPlantConfig`, `OperatorInputs`, `HydroEvaluation`, `Session`, `Snapshot`, `StationGrid`, `Command`.
+Key types: `HydroPlantConfig`, `OperatorInputs`, `HydroEvaluation`, `Session`, `Snapshot`, `LoadSnapshot`, `StationGrid`, `Command`.
+
+`Snapshot` includes aggregate bus fields and `loads: LoadSnapshot[]` (`id`, `label`, `ratingW`, `priority`, `drawing`) for the station grid terminal.
 
 ## CLI
 
@@ -95,22 +98,58 @@ cargo run -p energy-sim-server -- --listen 127.0.0.1:8787
 
 In-memory sessions only (Stage 1). Auth and multi-tenant storage are later.
 
-## Optional WASM (`energy-sim-wasm`)
+## WASM (`energy-sim-wasm`)
 
-For hosts that prefer in-process evaluation (teaching pages, offline demos):
+**Primary short-term path for Atomic Adventures:** run the engine on the player device so static deploys do not need a sim server. The **remote service** remains the lab path today and the long-term hosted path.
 
 ```sh
 # requires wasm-pack and rustup target wasm32-unknown-unknown
 wasm-pack build crates/energy-sim-wasm --target web
 ```
 
-Exports:
+### One-shot helpers
 
 | JS name | Role |
 | --- | --- |
 | `version()` | Banner string |
 | `evaluateHydro(plantJson, operatorJson?)` | Steady-state hydro eval |
-| `runSession(configJson, durationSecs, commandsJson?)` | Start + advance; returns `AdvanceReport` |
+| `runSession(configJson, durationSecs, commandsJson?)` | One-shot start + advance; returns `AdvanceReport` |
 | `sessionSnapshot(configJson, start)` | Snapshot without long advance |
 
-Not required for Atomic Adventures when the remote service path is healthy.
+### Long-lived `Session` handle (game-ready)
+
+Aligned with the HTTP session contract. Drop the handle (or call `.free()`) to release WASM memory.
+
+| JS | Role |
+| --- | --- |
+| `new Session(configJson)` | Create from plant or station JSON |
+| `Session.fromCheckpoint(checkpointJson)` | Restore from checkpoint document |
+| `start()` / `stop()` | Phase; returns snapshot |
+| `advance(durationSecs, commandsJson?)` | Advance; optional command array JSON before advance |
+| `tick(dtSecs)` | Single step; returns snapshot |
+| `applyCommands(commandsJson)` | JSON array of commands; returns snapshot |
+| `snapshot()` | Point-in-time snapshot |
+| `history(fromSecs?, toSecs?)` | `{ events, samples }` |
+| `checkpoint()` / `checkpointJson()` | Full checkpoint object or string |
+| `phase` / `simTimeS` | Convenience getters |
+
+### Host adapter (`clients/js/`)
+
+Use a transport-swappable backend so control-room and holo modules do not care whether physics runs in WASM or on the server:
+
+| Module | Role |
+| --- | --- |
+| `energySimBackend.js` | `createHttpBackend` · `createWasmBackend` · `createEnergySimBackend` |
+| `energySimPresent.js` | `presentHydro` · `presentGrid` · `presentSnapshot` |
+| `energySimClient.js` | Low-level REST/WS + re-exports presentation helpers |
+
+```js
+import { createEnergySimBackend, presentGrid } from "./clients/js/energySimBackend.js";
+
+// Game alpha
+const backend = createEnergySimBackend({ kind: "wasm", wasm: { Session, version } });
+// Lab / hosted
+const backend = createEnergySimBackend({ kind: "http", baseUrl: "http://127.0.0.1:8787" });
+```
+
+See [clients/js/README.md](../clients/js/README.md).
