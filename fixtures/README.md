@@ -2,21 +2,26 @@
 
 Example plant and load configuration JSON for headless runs, tests, and the **game plant of record**.
 
-**Plant of record:** **Clearwater Diversion** (`clearwater-diversion`) — one campus facility, not a separate “utility station” identity.  
+**Naming**
+
+| Name | Role |
+| --- | --- |
+| **Clearwater Run** | Stream (story / geography) |
+| **Clearwater Diversion** | Hydro plant (`hydro-plant`) |
+| **Clearwater Station** | Campus facility session: plant + bus (`energy-session`) |
+
 Architecture / promote workflow: [docs/design.md](../docs/design.md).  
 Changelog of fixture promotions: [CHANGELOG.md](CHANGELOG.md).
 
-## Clearwater Diversion (plant of record)
-
-Same facility, two document shapes the engine accepts:
+## Clearwater (plant of record)
 
 | File | Kind | Use |
 | --- | --- | --- |
 | `plants/clearwater-diversion.json` | `hydro-plant` | Plant-only (lab export target, `hydro eval`, teaching) |
-| `stations/clearwater-diversion.json` | `energy-session` | Plant **+** bus loads for control-room / station sessions |
-| `grids/clearwater-diversion.json` | `station-grid` | Load registry alone (authoring/tests; also nested in the session file) |
+| `stations/clearwater-station.json` | `energy-session` | Plant **+** bus loads for control-room / station sessions |
+| `grids/clearwater-station.json` | `station-grid` | Load registry alone (authoring/tests; also nested in the session file) |
 
-Ids and labels use `clearwater-diversion` / “Clearwater Diversion (Clearwater Run)” throughout. Keep the nested `plant` in the session file in sync with `plants/clearwater-diversion.json` when promoting lab exports.
+Ids/labels: plant `clearwater-diversion` / “Clearwater Diversion”; station and grid `clearwater-station` / “Clearwater Station”. Keep the nested `plant` in the session file in sync with `plants/clearwater-diversion.json` when promoting lab exports.
 
 ## Other plants
 
@@ -45,7 +50,7 @@ The game must bind circuits to these ids via the EnergySim adapter. Do not hard-
        │
        ▼
   PR: plants/clearwater-diversion.json
-    + nested plant in stations/clearwater-diversion.json
+    + nested plant in stations/clearwater-station.json
     + fixtures/CHANGELOG.md row
        │
        ▼
@@ -55,7 +60,7 @@ The game must bind circuits to these ids via the EnergySim adapter. Do not hard-
 ### Steps
 
 1. **Tune** in `apps/hydro-config-lab` → **Export** plant JSON (engine schema).
-2. **Update fixtures** — replace `plants/clearwater-diversion.json` and the `plant` object inside `stations/clearwater-diversion.json` so they stay in sync. Keep grid load ids unchanged unless the game migrates with you.
+2. **Update fixtures** — replace `plants/clearwater-diversion.json` and the `plant` object inside `stations/clearwater-station.json` so they stay in sync. Keep grid load ids unchanged unless the game migrates with you.
 3. **Smoke** from repo root:
    ```sh
    ./scripts/smoke-clearwater.sh
@@ -72,7 +77,7 @@ The game must bind circuits to these ids via the EnergySim adapter. Do not hard-
 cargo run -p energy-sim-cli -- hydro eval --config fixtures/plants/clearwater-diversion.json
 
 cargo run -p energy-sim-cli -- session run \
-  --config fixtures/stations/clearwater-diversion.json \
+  --config fixtures/stations/clearwater-station.json \
   --duration-secs 30 \
   --out-dir ./target/clearwater-smoke/ \
   --commands examples/commands-lights-ev.json

@@ -27,7 +27,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 PLANT="$ROOT/fixtures/plants/clearwater-diversion.json"
-STATION="$ROOT/fixtures/stations/clearwater-diversion.json"
+STATION="$ROOT/fixtures/stations/clearwater-station.json"
 COMMANDS="$ROOT/examples/commands-lights-ev.json"
 
 for f in "$PLANT" "$STATION" "$COMMANDS"; do

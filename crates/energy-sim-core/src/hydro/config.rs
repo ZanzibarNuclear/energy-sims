@@ -296,7 +296,7 @@ mod tests {
       "schemaVersion": 1,
       "kind": "hydro-plant",
       "id": "clearwater-diversion",
-      "label": "Clearwater Diversion (Clearwater Run)",
+      "label": "Clearwater Diversion",
       "stream": { "availableFlowM3s": 0.05 },
       "penstock": {
         "grossHeadM": 25.0,

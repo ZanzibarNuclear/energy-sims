@@ -7,6 +7,7 @@ Process: [README.md](README.md) · design: [docs/design.md](../docs/design.md).
 | --- | --- | --- |
 | 2026-07-30 | `plants/clearwater-diversion.json` (+ session/grid) | Initial Clearwater Diversion plant + campus load registry (Stage 1). |
 | 2026-08-05 | `stations/clearwater-diversion.json`, `grids/clearwater-diversion.json` | Drop separate “utility-station” naming; one plant of record is Clearwater Diversion. |
+| 2026-08-05 | labels; `stations/` + `grids/` → `clearwater-station` | Labels: “Clearwater Diversion” (plant), “Clearwater Station” (session + grid). Stream story name Clearwater Run stays out of labels. |
 
 When updating:
 
