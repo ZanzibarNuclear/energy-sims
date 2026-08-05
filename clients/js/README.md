@@ -18,7 +18,7 @@ Architecture: [docs/design.md](../../docs/design.md). API: [docs/api.md](../../d
 | **Hydro config lab** | **HTTP** → local `energy-sim-server` | `createHttpBackend` / existing lab client |
 | **Hosted game (later)** | **HTTP** → shared server | Same adapter; swap `kind` / URL |
 
-Do not reimplement hydro or bus math in the game. Load station fixtures (e.g. `fixtures/stations/utility-station.json`) through the adapter.
+Do not reimplement hydro or bus math in the game. Load **Clearwater Diversion** fixtures (e.g. `fixtures/stations/clearwater-diversion.json`) through the adapter.
 
 ## Adapter usage
 

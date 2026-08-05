@@ -226,7 +226,7 @@ mod tests {
     use energy_sim_runtime::Command;
 
     fn station_json() -> &'static str {
-        include_str!("../../../fixtures/stations/utility-station.json")
+        include_str!("../../../fixtures/stations/clearwater-diversion.json")
     }
 
     fn plant_json() -> &'static str {

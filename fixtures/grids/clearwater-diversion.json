@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "kind": "station-grid",
-  "id": "utility-station",
-  "label": "Campus utility station",
+  "id": "clearwater-diversion",
+  "label": "Clearwater Diversion (Clearwater Run)",
   "loads": [
     {
       "id": "lighting.main",

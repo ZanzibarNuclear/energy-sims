@@ -5,7 +5,8 @@ Process: [README.md](README.md) · design: [docs/design.md](../docs/design.md).
 
 | Date | Documents | Change |
 | --- | --- | --- |
-| 2026-07-30 | `plants/clearwater-diversion.json`, `stations/utility-station.json` | Initial campus diversion plant + utility station load registry (Stage 1). |
+| 2026-07-30 | `plants/clearwater-diversion.json` (+ session/grid) | Initial Clearwater Diversion plant + campus load registry (Stage 1). |
+| 2026-08-05 | `stations/clearwater-diversion.json`, `grids/clearwater-diversion.json` | Drop separate “utility-station” naming; one plant of record is Clearwater Diversion. |
 
 When updating:
 

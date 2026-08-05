@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "kind": "hydro-plant",
   "id": "clearwater-diversion",
-  "label": "Clearwater Run Diversion",
+  "label": "Clearwater Diversion (Clearwater Run)",
   "stream": {
     "availableFlowM3s": 0.05
   },

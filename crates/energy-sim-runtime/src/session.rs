@@ -823,8 +823,8 @@ mod tests {
     }
 
     fn station_json() -> String {
-        std::fs::read_to_string("fixtures/stations/utility-station.json").unwrap_or_else(|_| {
-            std::fs::read_to_string("../../fixtures/stations/utility-station.json")
+        std::fs::read_to_string("fixtures/stations/clearwater-diversion.json").unwrap_or_else(|_| {
+            std::fs::read_to_string("../../fixtures/stations/clearwater-diversion.json")
                 .expect("station fixture")
         })
     }

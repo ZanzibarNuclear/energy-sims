@@ -21,7 +21,7 @@ cargo run -p energy-sim-cli -- hydro eval --config fixtures/plants/clearwater-di
 
 # Session: 120 s with loads → checkpoint.json, series.csv, events.jsonl
 cargo run -p energy-sim-cli -- session run \
-  --config fixtures/stations/utility-station.json \
+  --config fixtures/stations/clearwater-diversion.json \
   --duration-secs 120 \
   --out-dir ./run-demo/ \
   --commands examples/commands-lights-ev.json

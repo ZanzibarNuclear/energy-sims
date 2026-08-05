@@ -278,7 +278,7 @@ mod tests {
             r#"{
               "schemaVersion": 1,
               "kind": "station-grid",
-              "id": "utility-station",
+              "id": "clearwater-diversion",
               "loads": [
                 { "id": "lighting.main", "label": "Main lights", "ratingW": 400, "priority": "normal" },
                 { "id": "ev-charge.port-1", "label": "EV", "ratingW": 3500, "priority": "deferrable" }
