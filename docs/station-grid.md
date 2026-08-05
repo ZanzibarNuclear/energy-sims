@@ -33,7 +33,7 @@
 
 ## Load registry JSON
 
-See `fixtures/grids/clearwater-diversion.json`. Fields:
+See `fixtures/grids/clearwater-station.json`. Fields:
 
 | Field | Role |
 | --- | --- |
@@ -46,13 +46,13 @@ See `fixtures/grids/clearwater-diversion.json`. Fields:
 
 ## Session composition
 
-Full session document for Clearwater Diversion (`fixtures/stations/clearwater-diversion.json`): plant + its bus. This is the same plant of record as `plants/clearwater-diversion.json`, not a second facility.
+Full session document for **Clearwater Station** (`fixtures/stations/clearwater-station.json`): **Clearwater Diversion** plant + its bus. One campus facility; plant and station are different document kinds, not two sites.
 
 ```json
 {
   "schemaVersion": 1,
   "kind": "energy-session",
-  "id": "clearwater-diversion",
+  "id": "clearwater-station",
   "plant": { "...": "hydro-plant" },
   "grid": { "...": "station-grid" }
 }

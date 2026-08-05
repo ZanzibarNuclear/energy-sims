@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "kind": "station-grid",
-  "id": "clearwater-diversion",
-  "label": "Clearwater Diversion (Clearwater Run)",
+  "id": "clearwater-station",
+  "label": "Clearwater Station",
   "loads": [
     {
       "id": "lighting.main",

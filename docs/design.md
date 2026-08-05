@@ -6,7 +6,7 @@
 **Status:** Stage 1 engine + hydro config lab MVP complete (revision 10 — game integration design)  
 **Repository:** [github.com/ZanzibarNuclear/energy-sims](https://github.com/ZanzibarNuclear/energy-sims)  
 **Local path:** `sims/energy-sims/` (clone under atomic-ambitions monorepo `sims/`)  
-**Plans:** remaining work in [`docs/plans/next.md`](plans/next.md)
+**Plans:** host surface + game handoff in [`docs/plans/next.md`](plans/next.md)
 
 ---
 
@@ -26,7 +26,7 @@ Existing prototypes in `welcome` and `atomic-adventures` are **inspiration only*
 
 ### What the game needs
 
-In Part I of Atomic Adventures, Zanzibar restores a campus diversion plant on **Clearwater Run** (**Clearwater Diversion**). That plant is the single energy plant of record: generation and the local bus/loads that power outlets, appliances, holo-readers, EV charging, and lighting. Players should:
+In Part I of Atomic Adventures, Zanzibar restores a campus plant on **Clearwater Run**: the hydro plant is **Clearwater Diversion**, and the facility session (plant + bus) is **Clearwater Station**. That pair is the single energy plant of record: generation and the local bus/loads that power outlets, appliances, holo-readers, EV charging, and lighting. Players should:
 
 - Configure and run a hydro plant with real physical parameters (head, flow, penstock geometry, losses, efficiency).
 - Feed generated power into a **local station grid**.
@@ -74,7 +74,7 @@ Later sources (solar, battery, fission, fusion) plug into the same **grid + sess
 
 **Shipped after Stage 1 foundation:** interactive **hydro config lab** MVP (site layout, equipment, calculations, engine-backed trials, save/export). See [hydro-config-lab.md](hydro-config-lab.md).
 
-**Still outstanding** (single plan: [`docs/plans/next.md`](plans/next.md)): game-ready WASM session API, richer grid presentation for the control console, Clearwater fixture workflow, then Atomic Adventures integration (control room + holo-reader) and removal of legacy hydro prototypes. Deferred: database session store, component catalog, multi-source plants, auto load-shed.
+**Host surface complete** (A1–A4 in [`docs/plans/next.md`](plans/next.md)): long-lived WASM session, grid load rows, JS adapter, Clearwater fixture workflow. **Next:** Atomic Adventures integration (control room + holo-reader) and removal of legacy hydro prototypes in the game repo. Deferred in energy-sims: database session store, component catalog, multi-source plants, auto load-shed; optional lab follow-ons (station loads in lab, etc.).
 
 ---
 
@@ -158,7 +158,7 @@ sims/energy-sims/              # https://github.com/ZanzibarNuclear/energy-sims
 │   ├── station-grid.md        # bus, loads, balance semantics
 │   ├── api.md                 # library, CLI, HTTP / WebSocket surface
 │   ├── hydro-config-lab.md    # stand-alone lab (implemented MVP)
-│   └── plans/next.md          # remaining game-readiness work
+│   └── plans/next.md          # host surface done; game integration checklist
 ├── crates/
 │   ├── energy-sim-core/       # physics, types, pure evaluation
 │   ├── energy-sim-runtime/    # sessions, time, ramps, history, grid
@@ -171,7 +171,7 @@ sims/energy-sims/              # https://github.com/ZanzibarNuclear/energy-sims
 └── examples/                  # sample runs, export samples
 ```
 
-Shipped: **core**, **runtime**, **cli**, **server**, **wasm** (minimal), **JS client** sketch, **hydro config lab** MVP. Next: game-ready host adapter + richer grid presentation — then wire Atomic Adventures.
+Shipped: **core**, **runtime**, **cli**, **server**, **wasm** (long-lived session), **JS adapter** + presenters, **hydro config lab** MVP, **Clearwater** plant/station fixtures. Next: wire Atomic Adventures (game repo).
 
 ### Hydro model
 
@@ -212,7 +212,7 @@ Operator and environment inputs (gate openings, debris, leakage, stream availabi
   "schemaVersion": 1,
   "kind": "hydro-plant",
   "id": "clearwater-diversion",
-  "label": "Clearwater Diversion (Clearwater Run)",
+  "label": "Clearwater Diversion",
   "stream": {
     "availableFlowM3s": 0.05
   },
@@ -322,8 +322,8 @@ The station is more than a generator: it is a **local power grid** managed from 
 {
   "schemaVersion": 1,
   "kind": "station-grid",
-  "id": "clearwater-diversion",
-  "label": "Clearwater Diversion (Clearwater Run)",
+  "id": "clearwater-station",
+  "label": "Clearwater Station",
   "loads": [
     { "id": "lighting.main", "label": "Main building lights", "ratingW": 400, "priority": "normal" },
     { "id": "holo-reader.library", "label": "Library holo-reader", "ratingW": 80, "priority": "normal" },
@@ -692,7 +692,7 @@ The stand-alone lab is how we **try** configurations; fixtures in this repo are 
        │
        ▼
   PR into fixtures/plants/clearwater-diversion.json
-       + fixtures/stations/clearwater-diversion.json  (plant + grid)
+       + fixtures/stations/clearwater-station.json  (plant + grid)
        │
        ▼
   Game pins / copies fixture (versioned) as Clearwater plant of record
@@ -709,7 +709,7 @@ The stand-alone lab is how we **try** configurations; fixtures in this repo are 
 **Rules**
 
 - Engine field schema is the interchange format (not lab-only site geometry). Lab site profile stays in lab documents; plant export is what the game runs.
-- Plant of record is **Clearwater Diversion** only (not a separate “utility station” config). Session document = same plant + its bus/load registry. Load ids (`lighting.main`, `holo-reader.library`, …) should stay stable once the game binds circuits to them.
+- Naming: **Clearwater Run** (stream), **Clearwater Diversion** (hydro plant), **Clearwater Station** (session = plant + bus). One campus facility; two document kinds. Load ids (`lighting.main`, `holo-reader.library`, …) should stay stable once the game binds circuits to them.
 - Prefer small, reviewed fixture PRs over silent local overrides in the game repo.
 - Optional later: `packageId` catalog packages still expand to the same fields; Clearwater remains a full field document until catalog exists.
 
